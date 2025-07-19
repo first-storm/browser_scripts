@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Coles Product Scraper Enhanced
 // @namespace    http://tampermonkey.net/
-// @version      4.0
-// @description  Robust Coles scraper with Abort, Retry, and advanced anti-scraping settings.
+// @version      4.2
+// @description  Robust Coles scraper with SVG icons, Abort, Retry, and a native-looking UI.
 // @author       Gemini
 // @match        https://www.coles.com.au/*
 // @grant        GM_addStyle
@@ -11,6 +11,17 @@
 
 (function() {
     'use strict';
+
+    // --- SVG ICONS ---
+    const icons = {
+        scrapePage: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>`,
+        scrapeAll: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`,
+        fetchDetails: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"></polyline><line x1="12" y1="12" x2="12" y2="21"></line><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"></path></svg>`,
+        stop: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>`,
+        copy: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`,
+        clear: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
+        tool: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>`
+    };
 
     // --- GLOBAL STATE ---
     let uiPanel, uiToggleButton, resultsArea, statusArea, progressBar, stopButton;
@@ -127,7 +138,7 @@
     function createUI() {
         uiToggleButton = document.createElement('div');
         uiToggleButton.id = 'coles-scraper-toggle';
-        uiToggleButton.innerHTML = '📊';
+        uiToggleButton.innerHTML = icons.tool;
         uiToggleButton.title = 'Coles Scraper';
         document.body.appendChild(uiToggleButton);
 
@@ -136,7 +147,7 @@
         uiPanel.style.display = 'none';
         uiPanel.innerHTML = `
             <div id="coles-scraper-header">
-                <span>Coles Scraper v4.0</span>
+                <span>Coles Scraper v4.2</span>
                 <button id="close-panel-btn" title="Close">✕</button>
             </div>
             <div id="coles-scraper-content">
@@ -147,9 +158,9 @@
                 </div>
                 <pre id="coles-scraper-results">Navigate to a product page to begin.</pre>
                 <div class="button-group export-group">
-                    <button id="export-json-btn">Copy JSON</button>
-                    <button id="export-csv-btn">Copy CSV</button>
-                    <button id="clear-btn">Clear</button>
+                    <button id="export-json-btn">${icons.copy} Copy JSON</button>
+                    <button id="export-csv-btn">${icons.copy} Copy CSV</button>
+                    <button id="clear-btn">${icons.clear} Clear</button>
                 </div>
                 <details id="scraper-settings">
                     <summary>Advanced Settings</summary>
@@ -178,7 +189,6 @@
         resultsArea = document.getElementById('coles-scraper-results');
         statusArea = document.getElementById('coles-scraper-status');
         progressBar = document.getElementById('scraper-progress-bar');
-        stopButton = document.querySelector('#action-buttons button[id="stop-btn"]');
 
         // Add event listeners
         uiToggleButton.addEventListener('click', togglePanel);
@@ -206,10 +216,12 @@
     }
 
     function toggleOperationControls(isRunning) {
-        document.querySelectorAll('#action-buttons button').forEach(btn => btn.disabled = isRunning);
+        document.querySelectorAll('#action-buttons button, .export-group button').forEach(btn => {
+            if (btn.id !== 'stop-btn') btn.disabled = isRunning;
+        });
         document.getElementById('scraper-settings').style.pointerEvents = isRunning ? 'none' : 'auto';
         document.getElementById('scraper-settings').style.opacity = isRunning ? 0.6 : 1;
-        if (stopButton) stopButton.style.display = isRunning ? 'inline-block' : 'none';
+        if (stopButton) stopButton.style.display = isRunning ? 'inline-flex' : 'none';
         if (stopButton) stopButton.disabled = !isRunning;
     }
 
@@ -221,16 +233,16 @@
         actionsContainer.innerHTML = '';
         if (currentPageType === 'product-list') {
             actionsContainer.innerHTML = `
-                <button id="scrape-current-btn">Scrape This Page</button>
-                <button id="scrape-all-btn">Scrape All Pages</button>
-                <button id="fetch-details-btn" ${allProducts.length === 0 ? 'disabled' : ''}>Fetch All Details</button>
-                <button id="stop-btn" class="stop-button" style="display: none;">Stop</button>
+                <button id="scrape-current-btn">${icons.scrapePage} Scrape Page</button>
+                <button id="scrape-all-btn">${icons.scrapeAll} Scrape All</button>
+                <button id="fetch-details-btn" ${allProducts.length === 0 ? 'disabled' : ''}>${icons.fetchDetails} Fetch Details</button>
+                <button id="stop-btn" class="stop-button" style="display: none;">${icons.stop} Stop</button>
             `;
             document.getElementById('scrape-current-btn')?.addEventListener('click', handleScrapeCurrentPage);
             document.getElementById('scrape-all-btn')?.addEventListener('click', handleScrapeAllPages);
             document.getElementById('fetch-details-btn')?.addEventListener('click', handleFetchAllDetails);
         } else if (currentPageType === 'product-detail') {
-            actionsContainer.innerHTML = `<button id="scrape-detail-btn">Scrape This Product</button>`;
+            actionsContainer.innerHTML = `<button id="scrape-detail-btn">${icons.scrapePage} Scrape Product</button>`;
             document.getElementById('scrape-detail-btn')?.addEventListener('click', handleScrapeDetailPage);
         } else {
             actionsContainer.innerHTML = `<div class="info-message">Navigate to a Coles product or search page to use the scraper.</div>`;
@@ -468,39 +480,144 @@
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
-    // --- CSS STYLES ---
+    // --- CSS STYLES (Revamped for Coles Theme with SVG Icons) ---
     GM_addStyle(`
-        :root { --coles-green: #00783E; --coles-red: #E4002B; --stop-blue: #007bff; --light-gray: #f0f0f0; --medium-gray: #ccc; --dark-gray: #555; }
-        #coles-scraper-toggle { position: fixed; top: 50%; right: 0; transform: translateY(-50%); width: 45px; height: 45px; background-color: var(--coles-green); color: white; border-radius: 8px 0 0 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; box-shadow: -2px 2px 8px rgba(0,0,0,0.2); z-index: 99999; transition: all 0.2s ease; user-select: none; }
-        #coles-scraper-toggle:hover { background-color: #005a2e; width: 50px; }
-        #coles-scraper-panel { position: fixed; top: 20px; right: 20px; width: 480px; max-height: 90vh; background-color: #fdfdfd; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 6px 15px rgba(0,0,0,0.25); z-index: 99999; display: flex; flex-direction: column; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        #coles-scraper-header { padding: 10px 15px; cursor: move; background-color: var(--coles-green); color: white; font-weight: 600; border-top-left-radius: 10px; border-top-right-radius: 10px; display: flex; justify-content: space-between; align-items: center; }
-        #close-panel-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 0 5px; line-height: 1; opacity: 0.8; transition: opacity 0.2s; }
-        #close-panel-btn:hover { opacity: 1; }
-        #coles-scraper-content { padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-        #coles-scraper-results { width: 100%; height: 350px; background-color: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px; box-sizing: border-box; white-space: pre-wrap; word-break: break-all; font-family: 'Monaco', 'Menlo', 'Courier New', monospace; font-size: 12px; overflow-y: auto; line-height: 1.45; color: #333; }
+        :root {
+            --theme-red: #E4002B;
+            --theme-red-dark: #c30024;
+            --theme-text-primary: #212121;
+            --theme-text-secondary: #585858;
+            --theme-border-light: #e0e0e0;
+            --theme-background-light: #f7f7f7;
+            --theme-gray-medium: #8f8f8f;
+            --theme-blue-stop: #007bff; /* Kept distinct for critical action */
+        }
+        #coles-scraper-toggle {
+            position: fixed; top: 100px; right: 0; transform: translateY(0);
+            width: 48px; height: 48px;
+            background-color: var(--theme-red);
+            color: white; border-radius: 8px 0 0 8px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            box-shadow: -2px 2px 8px rgba(0,0,0,0.2);
+            z-index: 99999; transition: all 0.2s ease; user-select: none;
+        }
+        #coles-scraper-toggle:hover {
+            background-color: var(--theme-red-dark);
+            width: 52px;
+        }
+        #coles-scraper-toggle svg { width: 28px; height: 28px; }
+        #coles-scraper-panel {
+            position: fixed; top: 20px; right: 20px;
+            width: 520px; max-height: 90vh;
+            background-color: #fff;
+            border: 1px solid var(--theme-border-light);
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            z-index: 99999; display: flex; flex-direction: column;
+            font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #coles-scraper-header {
+            padding: 12px 18px;
+            cursor: move;
+            background-color: #fff;
+            color: var(--theme-text-primary);
+            font-weight: 600; font-size: 16px;
+            border-bottom: 1px solid var(--theme-border-light);
+            border-top-left-radius: 8px; border-top-right-radius: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        #close-panel-btn {
+            background: none; border: none;
+            color: var(--theme-text-secondary);
+            font-size: 24px; cursor: pointer;
+            padding: 0 5px; line-height: 1;
+            opacity: 0.8; transition: all 0.2s;
+        }
+        #close-panel-btn:hover {
+            opacity: 1;
+            transform: rotate(90deg);
+        }
+        #coles-scraper-content {
+            padding: 18px; overflow-y: auto;
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        #coles-scraper-results {
+            width: 100%; height: 350px;
+            background-color: #fcfcfc;
+            border: 1px solid var(--theme-border-light);
+            border-radius: 6px; padding: 10px; box-sizing: border-box;
+            white-space: pre-wrap; word-break: break-all;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+            font-size: 12px; overflow-y: auto; line-height: 1.5;
+            color: #333;
+        }
         #coles-scraper-status-container { display: flex; flex-direction: column; gap: 8px; }
-        #coles-scraper-status { font-style: italic; color: var(--dark-gray); min-height: 1.2em; font-size: 13px; }
-        #scraper-progress-bar { width: 100%; height: 8px; border-radius: 4px; border: none; }
-        #scraper-progress-bar::-webkit-progress-bar { background-color: #e0e0e0; border-radius: 4px; }
-        #scraper-progress-bar::-webkit-progress-value { background-color: var(--coles-red); border-radius: 4px; transition: width 0.3s ease; }
-        .button-group { display: flex; gap: 10px; flex-wrap: wrap; }
-        .button-group.export-group { border-top: 1px solid #eee; padding-top: 12px; }
-        .button-group button { padding: 8px 15px; border: none; background-color: var(--coles-red); color: white; border-radius: 5px; cursor: pointer; transition: all 0.2s ease; font-size: 13px; font-weight: 600; }
-        .button-group button:hover:not(:disabled) { background-color: #c30024; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transform: translateY(-1px); }
-        .button-group button:disabled { background-color: var(--medium-gray); color: #f7f7f7; cursor: not-allowed; transform: none; box-shadow: none; }
-        #clear-btn { background-color: #777; } #clear-btn:hover:not(:disabled) { background-color: #555; }
-        .stop-button { background-color: var(--stop-blue); } .stop-button:hover:not(:disabled) { background-color: #0069d9; }
-        .info-message { width: 100%; color: #666; font-style: italic; text-align: center; padding: 20px; background-color: #f7f7f7; border-radius: 6px; box-sizing: border-box; }
-        #scraper-settings { border: 1px solid #e0e0e0; border-radius: 6px; background-color: #f9f9f9; transition: opacity 0.3s; }
-        #scraper-settings summary { font-weight: 600; cursor: pointer; padding: 10px; color: #444; }
-        #scraper-settings summary:hover { background-color: #f0f0f0; }
-        #scraper-settings > div { padding: 12px; }
-        .settings-grid { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; font-size: 13px; }
-        .settings-grid:not(:last-child) { border-bottom: 1px solid #e9e9e9; padding-bottom: 12px; margin-bottom: 12px; }
-        .settings-grid label { justify-self: start; color: #333; }
-        .settings-grid input[type="number"] { width: 100%; padding: 5px 8px; border: 1px solid var(--medium-gray); border-radius: 4px; box-sizing: border-box;}
-        .settings-grid input[type="checkbox"] { justify-self: start; width: 18px; height: 18px; }
+        #coles-scraper-status { font-style: italic; color: var(--theme-text-secondary); min-height: 1.2em; font-size: 14px; }
+        #scraper-progress-bar { width: 100%; height: 6px; border-radius: 3px; border: none; }
+        #scraper-progress-bar::-webkit-progress-bar { background-color: #f0f0f0; border-radius: 3px; }
+        #scraper-progress-bar::-webkit-progress-value { background-color: var(--theme-red); border-radius: 3px; transition: width 0.3s ease; }
+        .button-group { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .button-group.export-group { border-top: 1px solid var(--theme-border-light); padding-top: 15px; }
+
+        /* Base Button Style */
+        .button-group button {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 10px 18px;
+            border: 1px solid transparent;
+            border-radius: 24px; /* Match Coles "Add" button */
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px; font-weight: 700;
+            line-height: 1;
+        }
+        .button-group button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .button-group button:disabled {
+            background-color: #e0e0e0 !important;
+            color: #a0a0a0 !important;
+            cursor: not-allowed;
+            box-shadow: none;
+            border-color: #e0e0e0 !important;
+        }
+        .button-group button svg {
+            width: 16px; height: 16px;
+            stroke-width: 2.5;
+            stroke: currentColor; /* Icon color matches text color */
+        }
+
+        /* Primary Buttons (Solid Red) */
+        #scrape-all-btn, #fetch-details-btn { background-color: var(--theme-red); color: white; }
+        #scrape-all-btn:hover:not(:disabled), #fetch-details-btn:hover:not(:disabled) { background-color: var(--theme-red-dark); }
+
+        /* Secondary Buttons (Outlined) */
+        #scrape-current-btn, #scrape-detail-btn, #export-json-btn, #export-csv-btn {
+            background-color: #fff; color: var(--theme-red); border: 1px solid var(--theme-red);
+        }
+        #scrape-current-btn:hover:not(:disabled), #scrape-detail-btn:hover:not(:disabled),
+        #export-json-btn:hover:not(:disabled), #export-csv-btn:hover:not(:disabled) {
+            background-color: var(--theme-red); color: #fff;
+        }
+
+        /* Utility & Stop Buttons */
+        #clear-btn { background-color: var(--theme-text-secondary); color: white; border-color: var(--theme-text-secondary); }
+        #clear-btn:hover:not(:disabled) { background-color: var(--theme-text-primary); border-color: var(--theme-text-primary); }
+        .stop-button { background-color: var(--theme-blue-stop); color: white; border-color: var(--theme-blue-stop); }
+        .stop-button:hover:not(:disabled) { background-color: #0069d9; border-color: #0069d9; }
+
+        .info-message { width: 100%; color: #666; font-style: italic; text-align: center; padding: 20px; background-color: var(--theme-background-light); border-radius: 6px; box-sizing: border-box; }
+        #scraper-settings { border: 1px solid var(--theme-border-light); border-radius: 6px; background-color: #fff; transition: opacity 0.3s; margin-top: 5px; }
+        #scraper-settings summary { font-weight: 600; cursor: pointer; padding: 12px 15px; color: var(--theme-text-primary); border-radius: 6px; }
+        #scraper-settings summary:hover { background-color: var(--theme-background-light); }
+        #scraper-settings > div { padding: 15px; }
+        .settings-grid { display: grid; grid-template-columns: auto 1fr; gap: 10px 15px; align-items: center; font-size: 14px; }
+        .settings-grid:not(:last-child) { border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; margin-bottom: 15px; }
+        .settings-grid label { justify-self: start; color: var(--theme-text-secondary); }
+        .settings-grid input[type="number"] { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+        .settings-grid input[type="number"]:focus { border-color: var(--theme-red); outline: none; box-shadow: 0 0 0 2px rgba(228, 0, 43, 0.2); }
+        .settings-grid input[type="checkbox"] { justify-self: start; width: 20px; height: 20px; accent-color: var(--theme-red); }
     `);
 
     // --- INITIALIZATION ---
