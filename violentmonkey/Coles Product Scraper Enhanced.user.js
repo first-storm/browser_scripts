@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Coles Scraper
 // @namespace    http://tampermonkey.net/
-// @version      5.3
-// @description  A comprehensive Coles tool with a tabbed UI for scraping products, including detailed data fetching and a visual list display.
+// @version      5.5
+// @description  A comprehensive Coles tool with a tabbed UI for scraping products, including detailed data fetching and an interactive visual list display.
 // @author       Artificial Intelligence LOL & Gemini
 // @match        https://www.coles.com.au/*
 // @grant        GM_addStyle
@@ -22,7 +22,11 @@
         stop: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>`,
         copy: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`,
         clear: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
-        tool: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>`
+        tool: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>`,
+        trash: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>`,
+        check: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+        expand: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`,
+        collapse: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`
     };
 
     // --- GLOBAL STATE ---
@@ -164,16 +168,16 @@
             if (!titleElement || !imageElement || !quantitySelect || !priceElement) return;
 
             const quantity = parseInt(quantitySelect.value, 10);
-            const unitPrice = parseFloat(priceElement.textContent.replace('$', ''));
-            if (isNaN(quantity) || isNaN(unitPrice)) return;
+            const totalPrice = parseFloat(priceElement.textContent.replace('$', ''));
+            if (isNaN(quantity) || isNaN(totalPrice)) return;
 
             items.push({
                 name: titleElement.textContent.trim(),
                 image_url: imageElement.src,
                 product_url: new URL(titleElement.href, window.location.origin).href,
                 quantity: quantity,
-                price: `$${unitPrice.toFixed(2)}`, // Use 'price' to match scraper format
-                itemTotal: parseFloat((quantity * unitPrice).toFixed(2))
+                price: `$${totalPrice.toFixed(2)}`, // This is the total price for this item
+                itemTotal: totalPrice // The price from trolley is already the total price
             });
         });
 
@@ -186,9 +190,9 @@
         container.innerHTML = ''; // Clear previous content
         if (!products || products.length === 0) return;
 
-        products.forEach(product => {
+        products.forEach((product, index) => {
             const productDiv = document.createElement('div');
-            productDiv.className = 'product-item';
+            productDiv.className = 'product-item-wrapper';
 
             const name = product.detailed_name || product.name || 'N/A';
             const price = product.detailed_current_price || product.price || 'N/A';
@@ -203,11 +207,19 @@
             }
 
             productDiv.innerHTML = `
-                <img src="${imageUrl}" class="product-item-img" alt="" loading="lazy" onerror="this.onerror=null;this.src='https://www.coles.com.au/_next/static/images/default_product_image-cf915244318b7c77271b489369949419.png';">
-                <div class="product-item-details">
-                    <p class="product-name" title="${name}">${name}</p>
-                    ${detailsHtml}
+                <div class="product-item" data-product-index="${index}" data-tab-type="${type}">
+                    <img src="${imageUrl}" class="product-item-img" alt="" loading="lazy" onerror="this.onerror=null;this.src='https://www.coles.com.au/_next/static/images/default_product_image-cf915244318b7c77271b489369949419.png';">
+                    <div class="product-item-details">
+                        <p class="product-name" title="${name}">${name}</p>
+                        ${detailsHtml}
+                    </div>
+                    <div class="product-item-actions">
+                        <button class="product-action-btn product-expand-btn" title="Expand/Collapse Details">${icons.expand}</button>
+                        <button class="product-action-btn product-copy-btn" title="Copy Details (JSON)">${icons.copy}</button>
+                        <button class="product-action-btn product-delete-btn" title="Remove from list">${icons.trash}</button>
+                    </div>
                 </div>
+                <div class="product-details-expanded" style="display: none;"></div>
             `;
             container.appendChild(productDiv);
         });
@@ -225,7 +237,7 @@
         uiPanel.style.display = 'none';
         uiPanel.innerHTML = `
             <div id="coles-scraper-header">
-                <span>Coles Scraper v5.3</span>
+                <span>Coles Scraper v5.5</span>
                 <button id="close-panel-btn" title="Close">✕</button>
             </div>
             <div id="coles-scraper-tabs">
@@ -249,8 +261,8 @@
                         <div id="trolley-tab-status"></div>
                         <progress id="trolley-tab-progress-bar" value="0" max="100" style="display: none;"></progress>
                     </div>
-                    <div id="trolley-total-price" style="display: none;"></div>
                     <div id="trolley-tab-results" class="product-list-container"></div>
+                    <div id="trolley-total-price" style="display: none;"></div>
                 </div>
 
                 <!-- Shared Controls -->
@@ -289,6 +301,7 @@
         document.getElementById('export-json-btn').addEventListener('click', exportJSON);
         document.getElementById('export-csv-btn').addEventListener('click', exportCSV);
         document.getElementById('clear-btn').addEventListener('click', clearResults);
+        uiPanel.addEventListener('click', handleProductActions); // Delegated listener for product actions
 
         // Settings listeners
         document.getElementById('min-delay').addEventListener('input', e => { settings.minDelay = parseInt(e.target.value, 10) || 0; });
@@ -324,6 +337,7 @@
         document.querySelectorAll('.button-group button, .export-group button').forEach(btn => {
             if (!btn.classList.contains('stop-button')) btn.disabled = isRunning;
         });
+        document.querySelectorAll('.product-action-btn').forEach(btn => btn.disabled = isRunning); // Disable inline actions too
         document.getElementById('scraper-settings').style.pointerEvents = isRunning ? 'none' : 'auto';
         document.getElementById('scraper-settings').style.opacity = isRunning ? 0.6 : 1;
         // Show/hide and disable/enable stop buttons
@@ -411,8 +425,8 @@
 
         if (trolleyProducts.length > 0) {
             const total = trolleyProducts.reduce((acc, p) => acc + (p.itemTotal || 0), 0);
-            totalArea.textContent = `Trolley Total: $${total.toFixed(2)}`;
-            totalArea.style.display = 'block';
+            totalArea.innerHTML = `<span>Trolley Total:</span> <span class="total-price-value">$${total.toFixed(2)}</span>`;
+            totalArea.style.display = 'flex'; // Use flex for styling
 
             renderProductList(resultsArea, trolleyProducts, 'trolley');
             statusArea.textContent = `Displaying ${trolleyProducts.length} items from trolley.`;
@@ -491,7 +505,7 @@
     async function runFetchWithRetries(url, statusAreaElement, originalStatus) {
         let error = null;
         for (let i = 0; i <= settings.maxRetries; i++) {
-            if (!isOperationRunning) return { error: new Error("Operation stopped") };
+            if (!isOperationRunning && statusAreaElement) return { error: new Error("Operation stopped") }; // Check global stop
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -499,9 +513,9 @@
             } catch (e) {
                 error = e;
                 if (i < settings.maxRetries) {
-                    statusAreaElement.textContent = `Fetch failed. Retrying... (${i + 1}/${settings.maxRetries})`;
+                    if(statusAreaElement) statusAreaElement.textContent = `Fetch failed. Retrying... (${i + 1}/${settings.maxRetries})`;
                     await sleepFixed(settings.retryDelay);
-                    statusAreaElement.textContent = originalStatus;
+                    if(statusAreaElement) statusAreaElement.textContent = originalStatus;
                 }
             }
         }
@@ -597,7 +611,8 @@
                 } else {
                     Object.assign(product, scrapeProductDetailPage(doc));
                 }
-                updateDisplayFunc(); // Update the display for the relevant tab
+                // Instead of full re-render, just update the single item if possible, or do full render
+                updateDisplayFunc(); // Full re-render is simpler for this bulk operation
                 if (isOperationRunning && i < total - 1) await sleepRandom();
             }
             statusAreaElement.textContent = isOperationRunning ? 'Finished fetching all details.' : 'Fetching stopped by user.';
@@ -628,37 +643,176 @@
         );
     }
 
+    // --- NEW: SINGLE ITEM ACTIONS ---
+    async function handleProductActions(e) {
+        if (isOperationRunning) return; // Don't allow actions during a bulk operation
+
+        const deleteBtn = e.target.closest('.product-delete-btn');
+        const copyBtn = e.target.closest('.product-copy-btn');
+        const expandBtn = e.target.closest('.product-expand-btn');
+
+        if (!deleteBtn && !copyBtn && !expandBtn) return;
+
+        const productItem = e.target.closest('.product-item');
+        const index = parseInt(productItem.dataset.productIndex, 10);
+        const tabType = productItem.dataset.tabType;
+        const productList = tabType === 'scraper' ? scrapedProducts : trolleyProducts;
+        const product = productList[index];
+
+        if (deleteBtn) {
+            productList.splice(index, 1);
+            if (tabType === 'scraper') updateScraperResultsDisplay();
+            else updateTrolleyResultsDisplay();
+        } else if (copyBtn) {
+            GM_setClipboard(JSON.stringify(product, null, 2));
+            copyBtn.classList.add('copied');
+            copyBtn.innerHTML = icons.check; // Change to check icon
+            setTimeout(() => {
+                copyBtn.classList.remove('copied');
+                copyBtn.innerHTML = icons.copy; // Back to copy icon
+            }, 1500);
+        } else if (expandBtn) {
+            const wrapper = e.target.closest('.product-item-wrapper');
+            const detailsContainer = wrapper.querySelector('.product-details-expanded');
+            const isVisible = detailsContainer.style.display !== 'none';
+
+            if (isVisible) {
+                detailsContainer.style.display = 'none';
+                expandBtn.innerHTML = icons.expand;
+            } else {
+                // Check if details are already loaded
+                if (product.detailed_name || product.detail_error) {
+                    renderExpandedDetails(detailsContainer, product);
+                    detailsContainer.style.display = 'block';
+                    expandBtn.innerHTML = icons.collapse;
+                } else {
+                    // Fetch details for the first time
+                    await fetchAndDisplaySingleDetail(index, tabType, detailsContainer, expandBtn);
+                }
+            }
+        }
+    }
+
+    async function fetchAndDisplaySingleDetail(index, tabType, detailsContainer, expandBtn) {
+        const productList = tabType === 'scraper' ? scrapedProducts : trolleyProducts;
+        const product = productList[index];
+
+        if (!product.product_url || product.product_url === 'N/A') {
+            product.detail_error = "No URL to fetch.";
+            renderExpandedDetails(detailsContainer, product);
+            detailsContainer.style.display = 'block';
+            expandBtn.innerHTML = icons.collapse;
+            return;
+        }
+
+        detailsContainer.innerHTML = `<div class="details-loading">Fetching details...</div>`;
+        detailsContainer.style.display = 'block';
+        expandBtn.disabled = true;
+
+        // Use a null status element for runFetchWithRetries to avoid updating the main status line
+        const { doc, error } = await runFetchWithRetries(product.product_url, null, '');
+
+        if (error) {
+            Object.assign(product, { detail_error: `Fetch failed: ${error.message}` });
+        } else {
+            Object.assign(product, scrapeProductDetailPage(doc));
+        }
+
+        renderExpandedDetails(detailsContainer, product);
+        expandBtn.innerHTML = icons.collapse;
+        expandBtn.disabled = false;
+    }
+
+    function renderExpandedDetails(container, product) {
+        const keysToIgnore = new Set(['name', 'price', 'unit_price', 'image_url', 'product_url', 'itemTotal', 'quantity']);
+        let html = '<dl class="details-dl">';
+        for (const key in product) {
+            if (!keysToIgnore.has(key) && product[key]) {
+                const prettyKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                html += `<dt>${prettyKey}</dt><dd>${product[key]}</dd>`;
+            }
+        }
+        html += '</dl>';
+        container.innerHTML = html;
+    }
+
     // --- EXPORT FUNCTIONS & OTHERS ---
     function prepareDataForExport() {
         const sourceData = activeTab === 'scraper' ? scrapedProducts : trolleyProducts;
-        return sourceData.map(p => {
+        const exportData = sourceData.map(p => {
             const newProd = { ...p };
             if (!settings.includeImageUrlOnCopy) delete newProd.image_url;
             if (!settings.includeProductUrlOnCopy) delete newProd.product_url;
             return newProd;
         });
+
+        // Unified format: always return an object with items array
+        const result = {
+            items: exportData
+        };
+
+        // Add total price for trolley data only
+        if (activeTab === 'trolley' && trolleyProducts.length > 0) {
+            const total = trolleyProducts.reduce((acc, p) => acc + (p.itemTotal || 0), 0);
+            result.totalPrice = parseFloat(total.toFixed(2));
+            result.totalPriceFormatted = `$${total.toFixed(2)}`;
+        }
+
+        return result;
+    }
+
+    function showCopyFeedback(buttonId) {
+        const btn = document.getElementById(buttonId);
+        if (!btn) return;
+
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = `${icons.check} Copied`;
+        btn.classList.add('copied-success');
+        btn.disabled = true;
+
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('copied-success');
+            btn.disabled = false;
+        }, 2000);
     }
 
     function exportJSON() {
         const dataToCopy = prepareDataForExport();
-        if (dataToCopy.length === 0) return alert('No data to copy.');
+        if (dataToCopy.items && dataToCopy.items.length === 0) {
+            alert('No data to copy.');
+            return;
+        }
         GM_setClipboard(JSON.stringify(dataToCopy, null, 2));
-        alert(`${dataToCopy.length} products copied to clipboard as JSON.`);
+        showCopyFeedback('export-json-btn');
     }
 
     function exportCSV() {
         const dataToCopy = prepareDataForExport();
-        if (dataToCopy.length === 0) return alert('No data to copy.');
-        const headers = Array.from(new Set(dataToCopy.flatMap(Object.keys)));
-        let csvContent = headers.join(',') + '\n';
-        dataToCopy.forEach(product => {
+        const itemsArray = dataToCopy.items;
+        let csvContent = '';
+
+        // Add total price info at the top for trolley data
+        if (dataToCopy.totalPrice !== undefined) {
+            csvContent = `Total Price,${dataToCopy.totalPriceFormatted}\n\n`;
+        }
+
+        if (!itemsArray || itemsArray.length === 0) {
+            alert('No data to copy.');
+            return;
+        }
+
+        const headers = Array.from(new Set(itemsArray.flatMap(Object.keys)));
+        csvContent += headers.join(',') + '\n';
+        itemsArray.forEach(product => {
             csvContent += headers.map(header => {
                 let value = String(product[header] || '').replace(/"/g, '""');
                 return (value.includes(',') || value.includes('\n')) ? `"${value}"` : value;
             }).join(',') + '\n';
         });
+
         GM_setClipboard(csvContent);
-        alert(`${dataToCopy.length} products copied to clipboard as CSV.`);
+        showCopyFeedback('export-csv-btn');
     }
 
     function clearResults() {
@@ -707,7 +861,7 @@
         :root {
             --theme-red: #E4002B; --theme-red-dark: #c30024; --theme-text-primary: #212121;
             --theme-text-secondary: #585858; --theme-border-light: #e0e0e0; --theme-background-light: #f7f7f7;
-            --theme-blue-stop: #007bff;
+            --theme-blue-stop: #007bff; --theme-green-success: #4caf50;
         }
         #coles-scraper-toggle {
             position: fixed; top: 100px; right: 0; width: 48px; height: 48px; background-color: var(--theme-red);
@@ -745,10 +899,12 @@
             border-radius: 6px; padding: 8px; box-sizing: border-box;
             overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
         }
+        .product-item-wrapper {
+            background-color: #fff; border: 1px solid #e9e9e9; border-radius: 4px;
+        }
         .product-item {
             display: flex; align-items: center; gap: 15px;
-            padding: 10px; border-radius: 4px; background-color: #fff;
-            border: 1px solid #e9e9e9;
+            padding: 10px;
         }
         .product-item-img {
             width: 60px; height: 60px; object-fit: contain; flex-shrink: 0;
@@ -764,10 +920,45 @@
         .product-unit-price { font-weight: 400; color: var(--theme-text-secondary); font-size: 12px; margin-left: 8px; }
         .product-quantity { font-size: 13px; color: var(--theme-text-secondary); margin: 4px 0 0 0;}
 
+        /* --- NEW STYLES for Item Actions and Details --- */
+        .product-item-actions { display: flex; gap: 5px; align-items: center; }
+        .product-action-btn {
+            background-color: #f0f0f0; border: 1px solid #e0e0e0; color: var(--theme-text-secondary);
+            width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        .product-action-btn:hover:not(:disabled) { background-color: #e0e0e0; color: var(--theme-text-primary); }
+        .product-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .product-action-btn svg { width: 16px; height: 16px; }
+        .product-delete-btn:hover:not(:disabled) { background-color: #ffebee; color: #c62828; }
+        .product-copy-btn:hover:not(:disabled):not(.copied) { background-color: #e3f2fd; color: #1565c0; }
+        .product-copy-btn.copied { background-color: var(--theme-green-success) !important; color: white !important; transition: all 0.3s ease; }
+        .product-details-expanded {
+            padding: 12px 15px; border-top: 1px solid #f0f0f0; background-color: #fafafa;
+            font-size: 13px;
+        }
+        .details-loading { font-style: italic; color: var(--theme-text-secondary); }
+        .details-dl { margin: 0; display: grid; grid-template-columns: 120px 1fr; gap: 8px; }
+        .details-dl dt { font-weight: 600; color: var(--theme-text-primary); }
+        .details-dl dd { margin: 0; color: var(--theme-text-secondary); word-break: break-word; }
+        /* --- END NEW STYLES --- */
+
         #trolley-total-price {
-            padding: 12px; background-color: #e8f5e9;
-            border: 1px solid #a5d6a7; border-radius: 6px; text-align: center;
-            font-size: 18px; font-weight: 700; color: #2e7d32;
+            padding: 12px 18px;
+            background-color: var(--theme-background-light);
+            border: 1px solid var(--theme-border-light);
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--theme-text-primary);
+        }
+        .total-price-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--theme-red);
         }
 
         .status-container { display: flex; flex-direction: column; gap: 8px; }
@@ -793,6 +984,12 @@
         .button-group button:hover:not(:disabled) { box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         .button-group button:disabled { background-color: #e0e0e0 !important; color: #a0a0a0 !important; cursor: not-allowed; box-shadow: none; border-color: #e0e0e0 !important; }
         .button-group button svg { width: 16px; height: 16px; stroke-width: 2.5; stroke: currentColor; }
+
+        .button-group button.copied-success {
+            background-color: var(--theme-green-success) !important;
+            color: white !important;
+            border-color: var(--theme-green-success) !important;
+        }
 
         #scraper-scrape-all-btn, #scraper-fetch-details-btn, #trolley-fetch-details-btn {
             background-color: var(--theme-red); color: white;
