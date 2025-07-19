@@ -536,7 +536,6 @@
         }
         #close-panel-btn:hover {
             opacity: 1;
-            transform: rotate(90deg);
         }
         #coles-scraper-content {
             padding: 18px; overflow-y: auto;
@@ -572,7 +571,6 @@
             line-height: 1;
         }
         .button-group button:hover:not(:disabled) {
-            transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         .button-group button:disabled {
