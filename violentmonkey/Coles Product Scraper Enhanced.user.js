@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Coles Scraper
 // @namespace    http://tampermonkey.net/
-// @version      5.2
-// @description  A comprehensive Coles tool with a tabbed UI for scraping products, including detailed data fetching.
-// @author       Artificial Intelligence LOL
+// @version      5.3
+// @description  A comprehensive Coles tool with a tabbed UI for scraping products, including detailed data fetching and a visual list display.
+// @author       Artificial Intelligence LOL & Gemini
 // @match        https://www.coles.com.au/*
 // @grant        GM_addStyle
 // @grant        GM_setClipboard
@@ -182,6 +182,37 @@
     }
 
     // --- UI & STATE MANAGEMENT ---
+    function renderProductList(container, products, type = 'scraper') {
+        container.innerHTML = ''; // Clear previous content
+        if (!products || products.length === 0) return;
+
+        products.forEach(product => {
+            const productDiv = document.createElement('div');
+            productDiv.className = 'product-item';
+
+            const name = product.detailed_name || product.name || 'N/A';
+            const price = product.detailed_current_price || product.price || 'N/A';
+            const unitPrice = product.unit_price || '';
+            const imageUrl = product.image_url || 'https://www.coles.com.au/_next/static/images/default_product_image-cf915244318b7c77271b489369949419.png';
+
+            let detailsHtml = `
+                <p class="product-price">${price} <span class="product-unit-price">${unitPrice}</span></p>
+            `;
+            if (type === 'trolley') {
+                detailsHtml += `<p class="product-quantity">Quantity: <strong>${product.quantity}</strong></p>`;
+            }
+
+            productDiv.innerHTML = `
+                <img src="${imageUrl}" class="product-item-img" alt="" loading="lazy" onerror="this.onerror=null;this.src='https://www.coles.com.au/_next/static/images/default_product_image-cf915244318b7c77271b489369949419.png';">
+                <div class="product-item-details">
+                    <p class="product-name" title="${name}">${name}</p>
+                    ${detailsHtml}
+                </div>
+            `;
+            container.appendChild(productDiv);
+        });
+    }
+
     function createUI() {
         uiToggleButton = document.createElement('div');
         uiToggleButton.id = 'coles-scraper-toggle';
@@ -194,7 +225,7 @@
         uiPanel.style.display = 'none';
         uiPanel.innerHTML = `
             <div id="coles-scraper-header">
-                <span>Coles Scraper v5.2</span>
+                <span>Coles Scraper v5.3</span>
                 <button id="close-panel-btn" title="Close">✕</button>
             </div>
             <div id="coles-scraper-tabs">
@@ -209,7 +240,7 @@
                         <div id="scraper-tab-status"></div>
                         <progress id="scraper-tab-progress-bar" value="0" max="100" style="display: none;"></progress>
                     </div>
-                    <pre id="scraper-tab-results"></pre>
+                    <div id="scraper-tab-results" class="product-list-container"></div>
                 </div>
                 <!-- Trolley Tab Content -->
                 <div id="trolley-tab-content" class="tab-content">
@@ -218,7 +249,8 @@
                         <div id="trolley-tab-status"></div>
                         <progress id="trolley-tab-progress-bar" value="0" max="100" style="display: none;"></progress>
                     </div>
-                    <pre id="trolley-tab-results"></pre>
+                    <div id="trolley-total-price" style="display: none;"></div>
+                    <div id="trolley-tab-results" class="product-list-container"></div>
                 </div>
 
                 <!-- Shared Controls -->
@@ -356,12 +388,15 @@
         if (!resultsArea || !statusArea) return;
 
         if (scrapedProducts.length > 0) {
-            resultsArea.textContent = JSON.stringify(scrapedProducts, null, 2);
+            renderProductList(resultsArea, scrapedProducts, 'scraper');
             statusArea.textContent = `Displaying ${scrapedProducts.length} products.`;
             if (detailsBtn && !isOperationRunning) detailsBtn.disabled = false;
         } else {
             const pageType = detectPageType();
-            resultsArea.textContent = (pageType === 'product-list' || pageType === 'product-detail') ? 'Click a button to start scraping.' : 'Navigate to a Coles product page or search results.';
+            const message = (pageType === 'product-list' || pageType === 'product-detail')
+                ? 'Click a button to start scraping.'
+                : 'Navigate to a Coles product page or search results.';
+            resultsArea.innerHTML = `<div class="info-message">${message}</div>`;
             statusArea.textContent = '';
             if (detailsBtn) detailsBtn.disabled = true;
         }
@@ -371,15 +406,21 @@
         const resultsArea = document.getElementById('trolley-tab-results');
         const statusArea = document.getElementById('trolley-tab-status');
         const detailsBtn = document.getElementById('trolley-fetch-details-btn');
-        if (!resultsArea || !statusArea) return;
+        const totalArea = document.getElementById('trolley-total-price');
+        if (!resultsArea || !statusArea || !detailsBtn || !totalArea) return;
 
         if (trolleyProducts.length > 0) {
-            resultsArea.textContent = JSON.stringify(trolleyProducts, null, 2);
+            const total = trolleyProducts.reduce((acc, p) => acc + (p.itemTotal || 0), 0);
+            totalArea.textContent = `Trolley Total: $${total.toFixed(2)}`;
+            totalArea.style.display = 'block';
+
+            renderProductList(resultsArea, trolleyProducts, 'trolley');
             statusArea.textContent = `Displaying ${trolleyProducts.length} items from trolley.`;
             if (detailsBtn && !isOperationRunning) detailsBtn.disabled = false;
         } else {
-            resultsArea.textContent = 'Click "Scrape Trolley" to get started.';
+            resultsArea.innerHTML = `<div class="info-message">Click "Scrape Trolley" to get started.</div>`;
             statusArea.textContent = '';
+            totalArea.style.display = 'none';
             if (detailsBtn) detailsBtn.disabled = true;
         }
     }
@@ -446,7 +487,6 @@
         }
         updateTrolleyResultsDisplay();
     }
-
 
     async function runFetchWithRetries(url, statusAreaElement, originalStatus) {
         let error = null;
@@ -699,17 +739,42 @@
         #coles-scraper-content { padding: 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
         .tab-content { display: none; flex-direction: column; gap: 15px; }
         .tab-content.active { display: flex; }
-        #scraper-tab-results, #trolley-tab-results { /* Updated IDs */
-            width: 100%; height: 350px; background-color: #fcfcfc; border: 1px solid var(--theme-border-light);
-            border-radius: 6px; padding: 10px; box-sizing: border-box; white-space: pre-wrap; word-break: break-all;
-            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
-            font-size: 12px; overflow-y: auto; line-height: 1.5; color: #333;
+
+        .product-list-container {
+            width: 100%; height: 350px; background-color: #f7f7f7; border: 1px solid var(--theme-border-light);
+            border-radius: 6px; padding: 8px; box-sizing: border-box;
+            overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
         }
+        .product-item {
+            display: flex; align-items: center; gap: 15px;
+            padding: 10px; border-radius: 4px; background-color: #fff;
+            border: 1px solid #e9e9e9;
+        }
+        .product-item-img {
+            width: 60px; height: 60px; object-fit: contain; flex-shrink: 0;
+            border-radius: 4px;
+        }
+        .product-item-details { flex: 1; min-width: 0; }
+        .product-name {
+            font-weight: 600; color: var(--theme-text-primary);
+            margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            font-size: 14px;
+        }
+        .product-price { font-weight: 700; color: var(--theme-red); margin: 0; font-size: 15px; }
+        .product-unit-price { font-weight: 400; color: var(--theme-text-secondary); font-size: 12px; margin-left: 8px; }
+        .product-quantity { font-size: 13px; color: var(--theme-text-secondary); margin: 4px 0 0 0;}
+
+        #trolley-total-price {
+            padding: 12px; background-color: #e8f5e9;
+            border: 1px solid #a5d6a7; border-radius: 6px; text-align: center;
+            font-size: 18px; font-weight: 700; color: #2e7d32;
+        }
+
         .status-container { display: flex; flex-direction: column; gap: 8px; }
-        #scraper-tab-status, #trolley-tab-status { /* Updated IDs */
+        #scraper-tab-status, #trolley-tab-status {
             font-style: italic; color: var(--theme-text-secondary); min-height: 1.2em; font-size: 14px;
         }
-        #scraper-tab-progress-bar, #trolley-tab-progress-bar { /* Updated IDs */
+        #scraper-tab-progress-bar, #trolley-tab-progress-bar {
             width: 100%; height: 6px; border-radius: 3px; border: none;
         }
         #scraper-tab-progress-bar::-webkit-progress-bar, #trolley-tab-progress-bar::-webkit-progress-bar {
@@ -729,30 +794,31 @@
         .button-group button:disabled { background-color: #e0e0e0 !important; color: #a0a0a0 !important; cursor: not-allowed; box-shadow: none; border-color: #e0e0e0 !important; }
         .button-group button svg { width: 16px; height: 16px; stroke-width: 2.5; stroke: currentColor; }
 
-        /* Primary Buttons (Solid Red) */
-        #scraper-scrape-all-btn, #scraper-fetch-details-btn, #trolley-fetch-details-btn { /* Updated IDs */
+        #scraper-scrape-all-btn, #scraper-fetch-details-btn, #trolley-fetch-details-btn {
             background-color: var(--theme-red); color: white;
         }
-        #scraper-scrape-all-btn:hover:not(:disabled), #scraper-fetch-details-btn:hover:not(:disabled), #trolley-fetch-details-btn:hover:not(:disabled) { /* Updated IDs */
+        #scraper-scrape-all-btn:hover:not(:disabled), #scraper-fetch-details-btn:hover:not(:disabled), #trolley-fetch-details-btn:hover:not(:disabled) {
             background-color: var(--theme-red-dark);
         }
 
-        /* Secondary Buttons (Outlined) */
-        #scraper-scrape-current-btn, #scraper-scrape-detail-btn, #export-json-btn, #export-csv-btn, #trolley-scrape-btn { /* Updated IDs */
+        #scraper-scrape-current-btn, #scraper-scrape-detail-btn, #export-json-btn, #export-csv-btn, #trolley-scrape-btn {
             background-color: #fff; color: var(--theme-red); border: 1px solid var(--theme-red);
         }
         #scraper-scrape-current-btn:hover:not(:disabled), #scraper-scrape-detail-btn:hover:not(:disabled),
-        #export-json-btn:hover:not(:disabled), #export-csv-btn:hover:not(:disabled), #trolley-scrape-btn:hover:not(:disabled) { /* Updated IDs */
+        #export-json-btn:hover:not(:disabled), #export-csv-btn:hover:not(:disabled), #trolley-scrape-btn:hover:not(:disabled) {
             background-color: var(--theme-red); color: #fff;
         }
 
-        /* Utility & Stop Buttons */
         #clear-btn { background-color: var(--theme-text-secondary); color: white; border-color: var(--theme-text-secondary); }
         #clear-btn:hover:not(:disabled) { background-color: var(--theme-text-primary); border-color: var(--theme-text-primary); }
         .stop-button { background-color: var(--theme-blue-stop); color: white; border-color: var(--theme-blue-stop); }
         .stop-button:hover:not(:disabled) { background-color: #0069d9; border-color: #0069d9; }
 
-        .info-message { width: 100%; color: #666; font-style: italic; text-align: center; padding: 20px; background-color: var(--theme-background-light); border-radius: 6px; box-sizing: border-box; }
+        .info-message {
+            display: flex; align-items: center; justify-content: center; height: 100%;
+            width: 100%; color: #666; font-style: italic; text-align: center;
+            padding: 20px; background-color: transparent; border-radius: 6px; box-sizing: border-box;
+        }
         #scraper-settings { border: 1px solid var(--theme-border-light); border-radius: 6px; background-color: #fff; transition: opacity 0.3s; margin-top: 5px; }
         #scraper-settings summary { font-weight: 600; cursor: pointer; padding: 12px 15px; color: var(--theme-text-primary); border-radius: 6px; }
         #scraper-settings summary:hover { background-color: var(--theme-background-light); }
