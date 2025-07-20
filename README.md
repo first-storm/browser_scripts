@@ -2,6 +2,37 @@
 
 This repository contains a collection of personal user scripts designed to enhance browsing experience and automate tasks using Violentmonkey (or Tampermonkey).
 
+## Installation & Setup
+
+Before using these scripts, you need to install a userscript manager extension in your browser:
+
+### Browser Recommendations
+
+- **Firefox**: [Violentmonkey](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) (Recommended)
+- **Chrome/Chromium**: [Violentmonkey](https://chrome.google.com/webstore/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag) (Recommended)
+- **Safari**: [Tampermonkey](https://apps.apple.com/us/app/tampermonkey/id6738342400) (Recommended)
+
+### Installation Steps
+
+1. **Install the userscript manager**:
+   - Click the link above for your browser
+   - Follow the installation process in your browser's extension/add-on store
+
+2. **Install userscripts**:
+   - Click any of the blue "Install UserScript" badges in this README
+   - Your userscript manager will open and prompt you to install the script
+   - Click "Install" or "Confirm installation"
+
+3. **Usage**:
+   - Navigate to the supported websites (as listed in each script's @match directive)
+   - The scripts will automatically activate and add their functionality
+
+### Troubleshooting
+
+- If a script doesn't work, ensure it's enabled in your userscript manager
+- Some scripts may require page refresh after installation
+- Check that you're on a supported website URL
+
 ## Scripts Overview
 
 ### 🛒 Scrapers
