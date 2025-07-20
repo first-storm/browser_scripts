@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Coles Scraper
 // @namespace    http://tampermonkey.net/
-// @version      6.1
+// @version      6.2
 // @description  A comprehensive Coles tool with a tabbed UI for scraping products, including detailed data fetching, an interactive visual list display, and multiple export formats (JSON, CSV, Markdown).
 // @author       Artificial Intelligence LOL & Gemini
 // @match        https://www.coles.com.au/*
@@ -36,6 +36,7 @@
     let isExpanded = false;
     let isOperationRunning = false;
     let activeTab = 'scraper'; // 'scraper' or 'trolley'
+    let operationAbortController = null; // For stopping operations
 
     // --- SETTINGS STATE ---
     let settings = {
@@ -54,24 +55,35 @@
     };
     const sleepFixed = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+    // Validate settings to prevent invalid values
+    function validateSettings() {
+        settings.minDelay = Math.max(100, Math.min(settings.minDelay, 10000));
+        settings.maxDelay = Math.max(settings.minDelay, Math.min(settings.maxDelay, 10000));
+        settings.maxRetries = Math.max(0, Math.min(settings.maxRetries, 10));
+        settings.retryDelay = Math.max(100, Math.min(settings.retryDelay, 10000));
+    }
+
     /**
      * Robust cross-platform clipboard copy.
-     * Returns true on success, false otherwise.
+     * Returns a Promise that resolves to true on success, false otherwise.
      */
-    function copyToClipboard(text) {
+    async function copyToClipboard(text) {
         try {
             /* 1) Tampermonkey / Violentmonkey native API ------------------ */
             if (typeof GM_setClipboard === 'function') {
-                GM_setClipboard(text, 'text');   // the 2nd argument is required in some engines
+                GM_setClipboard(text, 'text');
                 return true;
             }
         } catch (e) { /* fall through */ }
 
         /* 2) Modern browsers (requires HTTPS & user gesture) -------------- */
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            return navigator.clipboard.writeText(text)
-                .then(() => true)
-                .catch(() => false);
+            try {
+                await navigator.clipboard.writeText(text);
+                return true;
+            } catch (e) {
+                /* fall through to legacy method */
+            }
         }
 
         /* 3) Legacy fallback --------------------------------------------- */
@@ -80,7 +92,10 @@
             ta.value = text;
             ta.style.position = 'fixed';
             ta.style.opacity = '0';
+            ta.style.top = '-9999px';
+            ta.style.left = '-9999px';
             document.body.appendChild(ta);
+            ta.focus();
             ta.select();
             const ok = document.execCommand('copy');
             document.body.removeChild(ta);
@@ -92,6 +107,11 @@
     }
 
     const waitForElement = (selector, timeout = 5000) => new Promise((resolve, reject) => {
+        if (timeout <= 0) {
+            reject(new Error('Invalid timeout value'));
+            return;
+        }
+        
         const intervalTime = 100;
         let elapsedTime = 0;
         const interval = setInterval(() => {
@@ -116,17 +136,17 @@
             const originalUrlEncoded = url.searchParams.get('url');
             if (originalUrlEncoded) return decodeURIComponent(originalUrlEncoded);
         } catch (e) {
-            const srcset = imgTag.getAttribute('srcset');
-            if (srcset) {
-                const firstUrlPart = srcset.split(' ')[0];
-                if (firstUrlPart && firstUrlPart.includes('_next/image')) {
-                    try {
+            try {
+                const srcset = imgTag.getAttribute('srcset');
+                if (srcset) {
+                    const firstUrlPart = srcset.split(' ')[0];
+                    if (firstUrlPart && firstUrlPart.includes('_next/image')) {
                         const url = new URL(firstUrlPart, window.location.origin);
                         const originalUrlEncoded = url.searchParams.get('url');
                         if (originalUrlEncoded) return decodeURIComponent(originalUrlEncoded);
-                    } catch (e2) { /* Ignore */ }
+                    }
                 }
-            }
+            } catch (e2) { /* Ignore */ }
         }
         return imgTag.src;
     }
@@ -144,14 +164,26 @@
         doc.querySelectorAll("section[data-testid='product-tile']").forEach(tile => {
             try {
                 const linkTag = tile.querySelector("a.product__link") || tile.querySelector('.product__message-title_area a.product__link');
+                let productUrl = "N/A";
+                
+                if (linkTag && linkTag.href) {
+                    try {
+                        productUrl = new URL(linkTag.href, window.location.origin).href;
+                    } catch (e) {
+                        productUrl = linkTag.href; // fallback to original href
+                    }
+                }
+                
                 productsOnPage.push({
                     name: tile.querySelector("h2.product__title")?.textContent.trim() || "N/A",
-                    product_url: (linkTag && linkTag.href) ? new URL(linkTag.href, window.location.origin).href : "N/A",
+                    product_url: productUrl,
                     price: tile.querySelector("span.price__value")?.textContent.trim() || "N/A",
                     unit_price: tile.querySelector("div.price__calculation_method")?.textContent.trim() || "N/A",
                     image_url: parseProductImageUrl(tile.querySelector("img[data-testid='product-image']"))
                 });
-            } catch (e) { console.error("Could not parse a product tile:", e); }
+            } catch (e) { 
+                console.error("Could not parse a product tile:", e); 
+            }
         });
         return productsOnPage;
     }
@@ -159,72 +191,121 @@
     function scrapeProductDetailPage(doc = document) {
         const productData = {};
         const scriptTag = doc.getElementById('__NEXT_DATA__');
-        if (!scriptTag) return { detail_error: "__NEXT_DATA__ script tag not found." };
+        if (!scriptTag || !scriptTag.textContent) {
+            return { detail_error: "__NEXT_DATA__ script tag not found or empty." };
+        }
+        
         try {
-            const productInfo = JSON.parse(scriptTag.textContent)?.props?.pageProps?.product;
+            const jsonData = JSON.parse(scriptTag.textContent);
+            const productInfo = jsonData?.props?.pageProps?.product;
+            
             if (productInfo) {
-                const name = productInfo.name || '', size = productInfo.size || '';
+                const name = productInfo.name || '';
+                const size = productInfo.size || '';
                 productData.detailed_name = `${name} | ${size}`.replace(/^ \| | \| $/g, '');
                 productData.brand = productInfo.brand || 'N/A';
+                
                 const pricing = productInfo.pricing || {};
                 productData.detailed_current_price = pricing.now ? `$${pricing.now.toFixed(2)}` : 'N/A';
                 productData.detailed_original_price = pricing.was ? `$${pricing.was.toFixed(2)}` : 'None';
                 productData.savings = pricing.saveStatement || 'None';
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = productInfo.longDescription || '';
-                productData.description = tempDiv.textContent || tempDiv.innerText || 'N/A';
-                (productInfo.additionalInfo || []).forEach(item => {
-                    if (item?.title && item.description) productData[item.title.toLowerCase().replace(/\s+/g, '_')] = item.description;
-                });
+                
+                // Safely parse description
+                if (productInfo.longDescription) {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = productInfo.longDescription;
+                    productData.description = tempDiv.textContent || tempDiv.innerText || 'N/A';
+                } else {
+                    productData.description = 'N/A';
+                }
+                
+                // Process additional info
+                if (Array.isArray(productInfo.additionalInfo)) {
+                    productInfo.additionalInfo.forEach(item => {
+                        if (item?.title && item.description) {
+                            productData[item.title.toLowerCase().replace(/\s+/g, '_')] = item.description;
+                        }
+                    });
+                }
+                
                 productData.barcode_gtin = productInfo.gtin || 'N/A';
+                
+                // Rating and reviews
                 const ratingContainer = doc.querySelector('div[data-bv-show="rating_summary"][data-bv-ready="true"]');
                 if (ratingContainer) {
                     productData.rating = ratingContainer.querySelector('.bv_avgRating_component_container')?.textContent.trim() + ' / 5' || 'N/A';
                     productData.review_count = ratingContainer.querySelector('.bv_numReviews_text')?.textContent.trim().replace(/[()]/g, '') || 'N/A';
                 } else {
-                    productData.rating = 'N/A'; productData.review_count = 'N/A';
+                    productData.rating = 'N/A';
+                    productData.review_count = 'N/A';
                 }
-            } else { productData.detail_error = "Product info not found in __NEXT_DATA__."; }
-        } catch (e) { console.error("Error parsing product detail JSON:", e); productData.detail_error = `Error parsing JSON: ${e.message}`; }
+            } else {
+                productData.detail_error = "Product info not found in __NEXT_DATA__.";
+            }
+        } catch (e) {
+            console.error("Error parsing product detail JSON:", e);
+            productData.detail_error = `Error parsing JSON: ${e.message}`;
+        }
         return productData;
     }
 
     function scrapeTrolley() {
         const productListContainer = document.querySelector('#trolley-drawer-available-items ul');
-        if (!productListContainer) return { error: 'Could not find the trolley items list.' };
+        if (!productListContainer) {
+            return { error: 'Could not find the trolley items list.' };
+        }
 
         const productItems = productListContainer.children;
-        if (productItems.length === 0) return { error: 'Trolley is empty.' };
+        if (productItems.length === 0) {
+            return { error: 'Trolley is empty.' };
+        }
 
         const items = [];
         Array.from(productItems).forEach(item => {
-            const titleElement = item.querySelector('a[data-testid="product_in_trolley__title"]');
-            const imageElement = item.querySelector('img[data-testid="product-image"]');
-            const quantitySelect = item.querySelector('select[data-testid="quantity-picker-select"]');
-            const priceElement = item.querySelector('span[data-testid="product-pricing"]');
-            if (!titleElement || !imageElement || !quantitySelect || !priceElement) return;
+            try {
+                const titleElement = item.querySelector('a[data-testid="product_in_trolley__title"]');
+                const imageElement = item.querySelector('img[data-testid="product-image"]');
+                const quantitySelect = item.querySelector('select[data-testid="quantity-picker-select"]');
+                const priceElement = item.querySelector('span[data-testid="product-pricing"]');
+                
+                if (!titleElement || !imageElement || !quantitySelect || !priceElement) return;
 
-            const quantity = parseInt(quantitySelect.value, 10);
-            const totalPrice = parseFloat(priceElement.textContent.replace('$', ''));
-            if (isNaN(quantity) || isNaN(totalPrice)) return;
+                const quantity = parseInt(quantitySelect.value, 10);
+                const totalPrice = parseFloat(priceElement.textContent.replace('$', ''));
+                
+                if (isNaN(quantity) || isNaN(totalPrice)) return;
 
-            items.push({
-                name: titleElement.textContent.trim(),
-                image_url: imageElement.src,
-                product_url: new URL(titleElement.href, window.location.origin).href,
-                quantity: quantity,
-                price: `$${totalPrice.toFixed(2)}`, // This is the total price for this item
-                itemTotal: totalPrice // The price from trolley is already the total price
-            });
+                let productUrl = "N/A";
+                if (titleElement.href) {
+                    try {
+                        productUrl = new URL(titleElement.href, window.location.origin).href;
+                    } catch (e) {
+                        productUrl = titleElement.href;
+                    }
+                }
+
+                items.push({
+                    name: titleElement.textContent.trim(),
+                    image_url: imageElement.src,
+                    product_url: productUrl,
+                    quantity: quantity,
+                    price: `$${totalPrice.toFixed(2)}`,
+                    itemTotal: totalPrice
+                });
+            } catch (e) {
+                console.error("Error parsing trolley item:", e);
+            }
         });
 
-        if (items.length === 0) return { error: 'No valid products found to export.' };
+        if (items.length === 0) {
+            return { error: 'No valid products found to export.' };
+        }
         return { products: items };
     }
 
     // --- UI & STATE MANAGEMENT ---
     function renderProductList(container, products, type = 'scraper') {
-        container.innerHTML = ''; // Clear previous content
+        container.innerHTML = '';
         if (!products || products.length === 0) return;
 
         products.forEach((product, index) => {
@@ -274,7 +355,7 @@
         uiPanel.style.display = 'none';
         uiPanel.innerHTML = `
             <div id="coles-scraper-header">
-                <span>Coles Scraper v6.1</span>
+                <span>Coles Scraper v6.2</span>
                 <button id="close-panel-btn" title="Close">✕</button>
             </div>
             <div id="coles-scraper-tabs">
@@ -322,13 +403,13 @@
                     <summary>Advanced Settings</summary>
                     <div class="settings-grid">
                         <label for="min-delay" title="Minimum random delay between fetches">Min Delay (ms)</label>
-                        <input type="number" id="min-delay" value="${settings.minDelay}">
+                        <input type="number" id="min-delay" value="${settings.minDelay}" min="100" max="10000">
                         <label for="max-delay" title="Maximum random delay between fetches">Max Delay (ms)</label>
-                        <input type="number" id="max-delay" value="${settings.maxDelay}">
+                        <input type="number" id="max-delay" value="${settings.maxDelay}" min="100" max="10000">
                         <label for="max-retries" title="How many times to retry a failed network request">Max Retries</label>
-                        <input type="number" id="max-retries" value="${settings.maxRetries}">
+                        <input type="number" id="max-retries" value="${settings.maxRetries}" min="0" max="10">
                         <label for="retry-delay" title="How long to wait before retrying a failed request">Retry Wait (ms)</label>
-                        <input type="number" id="retry-delay" value="${settings.retryDelay}">
+                        <input type="number" id="retry-delay" value="${settings.retryDelay}" min="100" max="10000">
                     </div>
                     <div class="settings-grid">
                         <label for="include-img-url">Include Image URL</label>
@@ -362,13 +443,45 @@
             }
         });
 
-        // Settings listeners
-        document.getElementById('min-delay').addEventListener('input', e => { settings.minDelay = parseInt(e.target.value, 10) || 0; });
-        document.getElementById('max-delay').addEventListener('input', e => { settings.maxDelay = parseInt(e.target.value, 10) || 0; });
-        document.getElementById('max-retries').addEventListener('input', e => { settings.maxRetries = parseInt(e.target.value, 10) || 0; });
-        document.getElementById('retry-delay').addEventListener('input', e => { settings.retryDelay = parseInt(e.target.value, 10) || 0; });
-        document.getElementById('include-img-url').addEventListener('change', e => { settings.includeImageUrlOnCopy = e.target.checked; });
-        document.getElementById('include-prod-url').addEventListener('change', e => { settings.includeProductUrlOnCopy = e.target.checked; });
+        // Settings listeners with validation
+        document.getElementById('min-delay').addEventListener('input', e => {
+            const value = parseInt(e.target.value, 10);
+            if (!isNaN(value)) {
+                settings.minDelay = value;
+                validateSettings();
+                e.target.value = settings.minDelay;
+            }
+        });
+        document.getElementById('max-delay').addEventListener('input', e => {
+            const value = parseInt(e.target.value, 10);
+            if (!isNaN(value)) {
+                settings.maxDelay = value;
+                validateSettings();
+                e.target.value = settings.maxDelay;
+            }
+        });
+        document.getElementById('max-retries').addEventListener('input', e => {
+            const value = parseInt(e.target.value, 10);
+            if (!isNaN(value)) {
+                settings.maxRetries = value;
+                validateSettings();
+                e.target.value = settings.maxRetries;
+            }
+        });
+        document.getElementById('retry-delay').addEventListener('input', e => {
+            const value = parseInt(e.target.value, 10);
+            if (!isNaN(value)) {
+                settings.retryDelay = value;
+                validateSettings();
+                e.target.value = settings.retryDelay;
+            }
+        });
+        document.getElementById('include-img-url').addEventListener('change', e => {
+            settings.includeImageUrlOnCopy = e.target.checked;
+        });
+        document.getElementById('include-prod-url').addEventListener('change', e => {
+            settings.includeProductUrlOnCopy = e.target.checked;
+        });
 
         makeDraggable(uiPanel, document.getElementById('coles-scraper-header'));
         updateUIForActiveTab();
@@ -483,12 +596,12 @@
 
             renderProductList(resultsArea, trolleyProducts, 'trolley');
             statusArea.textContent = `Displaying ${trolleyProducts.length} items from trolley.`;
-            if (detailsBtn && !isOperationRunning) detailsBtn.disabled = false;
+            if (!isOperationRunning) detailsBtn.disabled = false;
         } else {
             resultsArea.innerHTML = `<div class="info-message">Click "Scrape Trolley" to get started.</div>`;
             statusArea.textContent = '';
             totalArea.style.display = 'none';
-            if (detailsBtn) detailsBtn.disabled = true;
+            detailsBtn.disabled = true;
         }
     }
 
@@ -496,6 +609,10 @@
     function handleStopOperation() {
         if (isOperationRunning) {
             isOperationRunning = false;
+            if (operationAbortController) {
+                operationAbortController.abort();
+                operationAbortController = null;
+            }
             document.getElementById('scraper-tab-status').textContent = "Stopping operation...";
             document.getElementById('trolley-tab-status').textContent = "Stopping operation...";
             document.querySelectorAll('.stop-button').forEach(btn => btn.disabled = true);
@@ -504,66 +621,100 @@
 
     async function handleScrapeCurrentPage() {
         if (isOperationRunning) return;
-        document.getElementById('scraper-tab-status').textContent = 'Scraping current page...';
+        const statusArea = document.getElementById('scraper-tab-status');
+        statusArea.textContent = 'Scraping current page...';
         document.getElementById('scraper-tab-progress-bar').style.display = 'none';
-        scrapedProducts = scrapeSearchPage();
-        updateScraperResultsDisplay();
-        document.getElementById('scraper-tab-status').textContent = `Scraped ${scrapedProducts.length} products from this page.`;
+        try {
+            scrapedProducts = scrapeSearchPage();
+            updateScraperResultsDisplay();
+            statusArea.textContent = `Scraped ${scrapedProducts.length} products from this page.`;
+        } catch (error) {
+            statusArea.textContent = `Error scraping page: ${error.message}`;
+            console.error('Scraping error:', error);
+        }
     }
 
     async function handleScrapeDetailPage() {
         if (isOperationRunning) return;
-        document.getElementById('scraper-tab-status').textContent = 'Scraping product details...';
+        const statusArea = document.getElementById('scraper-tab-status');
+        statusArea.textContent = 'Scraping product details...';
         document.getElementById('scraper-tab-progress-bar').style.display = 'none';
-        scrapedProducts = [scrapeProductDetailPage()];
-        updateScraperResultsDisplay();
-        document.getElementById('scraper-tab-status').textContent = 'Scraped product details.';
+        try {
+            scrapedProducts = [scrapeProductDetailPage()];
+            updateScraperResultsDisplay();
+            statusArea.textContent = 'Scraped product details.';
+        } catch (error) {
+            statusArea.textContent = `Error scraping product: ${error.message}`;
+            console.error('Scraping error:', error);
+        }
     }
 
     async function handleScrapeTrolley() {
         if (isOperationRunning) return;
         const statusArea = document.getElementById('trolley-tab-status');
         statusArea.textContent = 'Opening trolley and scraping...';
-        const drawer = document.querySelector('div[data-testid="trolley-drawer"]');
-        const isDrawerOpen = drawer && getComputedStyle(drawer).transform === 'none';
-
-        if (!isDrawerOpen) {
-            const trolleyButton = document.querySelector('button[data-testid="header-trolley-tablet-up"], button[data-testid="header-trolley"]');
-            if (!trolleyButton) {
-                statusArea.textContent = 'Could not find the trolley button to open the drawer.';
-                alert('Could not find the trolley button to open the drawer.');
-                return;
+        
+        try {
+            // More robust trolley drawer detection
+            let drawer = document.querySelector('div[data-testid="trolley-drawer"]');
+            let isDrawerOpen = false;
+            
+            if (drawer) {
+                const drawerRect = drawer.getBoundingClientRect();
+                isDrawerOpen = drawerRect.width > 0 && drawerRect.height > 0 && 
+                              getComputedStyle(drawer).visibility !== 'hidden';
             }
-            trolleyButton.click();
-            try {
-                await waitForElement('#trolley-drawer-available-items ul li');
-                await sleepFixed(250);
-            } catch (error) {
-                statusArea.textContent = 'Failed to load trolley content. Please try again.';
-                console.error("Trolley load error:", error);
-                return;
-            }
-        }
 
-        const result = scrapeTrolley();
-        if (result.error) {
-            statusArea.textContent = result.error;
-        } else {
-            trolleyProducts = result.products;
-            statusArea.textContent = `Scraped ${trolleyProducts.length} items from the trolley.`;
+            if (!isDrawerOpen) {
+                const trolleyButton = document.querySelector('button[data-testid="header-trolley-tablet-up"], button[data-testid="header-trolley"]');
+                if (!trolleyButton) {
+                    statusArea.textContent = 'Could not find the trolley button to open the drawer.';
+                    return;
+                }
+                trolleyButton.click();
+                try {
+                    await waitForElement('#trolley-drawer-available-items ul li');
+                    await sleepFixed(250);
+                } catch (error) {
+                    statusArea.textContent = 'Failed to load trolley content. Please try again.';
+                    console.error("Trolley load error:", error);
+                    return;
+                }
+            }
+
+            const result = scrapeTrolley();
+            if (result.error) {
+                statusArea.textContent = result.error;
+            } else {
+                trolleyProducts = result.products;
+                statusArea.textContent = `Scraped ${trolleyProducts.length} items from the trolley.`;
+            }
+            updateTrolleyResultsDisplay();
+        } catch (error) {
+            statusArea.textContent = `Error scraping trolley: ${error.message}`;
+            console.error('Trolley scraping error:', error);
         }
-        updateTrolleyResultsDisplay();
     }
 
-    async function runFetchWithRetries(url, statusAreaElement, originalStatus) {
+    async function runFetchWithRetries(url, statusAreaElement, originalStatus, signal) {
+        validateSettings();
         let error = null;
+        
         for (let i = 0; i <= settings.maxRetries; i++) {
-            if (!isOperationRunning && statusAreaElement) return { error: new Error("Operation stopped") };
+            if (signal && signal.aborted) {
+                throw new Error("Operation aborted");
+            }
+            if (!isOperationRunning && statusAreaElement) {
+                throw new Error("Operation stopped");
+            }
+            
             try {
-                const response = await fetch(url);
+                const response = await fetch(url, { signal });
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                return { doc: new DOMParser().parseFromString(await response.text(), 'text/html') };
+                const text = await response.text();
+                return { doc: new DOMParser().parseFromString(text, 'text/html') };
             } catch (e) {
+                if (signal && signal.aborted) throw e;
                 error = e;
                 if (i < settings.maxRetries) {
                     if(statusAreaElement) statusAreaElement.textContent = `Fetch failed. Retrying... (${i + 1}/${settings.maxRetries})`;
@@ -572,12 +723,13 @@
                 }
             }
         }
-        return { error };
+        throw error;
     }
 
     async function handleScrapeAllPages() {
         if (isOperationRunning) return;
         isOperationRunning = true;
+        operationAbortController = new AbortController();
         scrapedProducts = [];
         const statusArea = document.getElementById('scraper-tab-status');
         const progressBar = document.getElementById('scraper-tab-progress-bar');
@@ -587,6 +739,7 @@
         try {
             const paginationTag = document.querySelector("div[data-testid='pagination-info']");
             let totalPages = 1;
+            
             if (paginationTag) {
                 const ofMatch = paginationTag.textContent.match(/of ([\d,]+)/);
                 const rangeMatch = paginationTag.textContent.match(/(\d+)\s*-\s*(\d+)/);
@@ -596,6 +749,7 @@
                     if (resultsOnPage > 0) totalPages = Math.ceil(totalResults / resultsOnPage);
                 }
             }
+            
             statusArea.textContent = `Found ${totalPages} pages. Starting scrape...`;
             progressBar.style.display = 'block';
             progressBar.value = 0;
@@ -609,24 +763,44 @@
                 const baseUrl = new URL(window.location.href);
                 for (let i = 2; i <= totalPages; i++) {
                     if (!isOperationRunning) break;
+                    
                     const originalStatus = `Fetching page ${i} of ${totalPages}...`;
                     statusArea.textContent = originalStatus;
                     baseUrl.searchParams.set('page', i);
 
-                    const { doc, error } = await runFetchWithRetries(baseUrl.href, statusArea, originalStatus);
-                    if (error) { statusArea.textContent = `Error fetching page ${i}: ${error.message}. Stopping.`; break; }
-
-                    const newProducts = scrapeSearchPage(doc);
-                    if (newProducts.length === 0) { statusArea.textContent = `No products on page ${i}. Stopping.`; break; }
-                    scrapedProducts.push(...newProducts);
-                    progressBar.value = i;
-                    updateScraperResultsDisplay();
-                    if (isOperationRunning) await sleepRandom();
+                    try {
+                        const { doc } = await runFetchWithRetries(
+                            baseUrl.href, 
+                            statusArea, 
+                            originalStatus, 
+                            operationAbortController.signal
+                        );
+                        
+                        const newProducts = scrapeSearchPage(doc);
+                        if (newProducts.length === 0) {
+                            statusArea.textContent = `No products on page ${i}. Stopping.`;
+                            break;
+                        }
+                        scrapedProducts.push(...newProducts);
+                        progressBar.value = i;
+                        updateScraperResultsDisplay();
+                        
+                        if (isOperationRunning && i < totalPages) await sleepRandom();
+                    } catch (error) {
+                        if (error.message === "Operation aborted" || error.message === "Operation stopped") {
+                            break;
+                        }
+                        statusArea.textContent = `Error fetching page ${i}: ${error.message}. Stopping.`;
+                        break;
+                    }
                 }
             }
             statusArea.textContent = isOperationRunning ? `Finished scraping. Found ${scrapedProducts.length} products.` : 'Scraping stopped by user.';
+        } catch (error) {
+            statusArea.textContent = `Error during scraping: ${error.message}`;
         } finally {
             isOperationRunning = false;
+            operationAbortController = null;
             toggleOperationControls(false);
             progressBar.style.display = 'none';
             updateUIForActiveTab();
@@ -636,7 +810,9 @@
     async function runDetailFetchProcess(productList, statusAreaElement, progressBarElement, updateDisplayFunc) {
         if (isOperationRunning || productList.length === 0) return;
         isOperationRunning = true;
+        operationAbortController = new AbortController();
         toggleOperationControls(true);
+        
         const total = productList.length;
         statusAreaElement.textContent = `Starting to fetch details for ${total} products...`;
         progressBarElement.style.display = 'block';
@@ -646,6 +822,7 @@
         try {
             for (let i = 0; i < total; i++) {
                 if (!isOperationRunning) break;
+                
                 const product = productList[i];
                 progressBarElement.value = i + 1;
 
@@ -653,22 +830,34 @@
                     product.detail_error = "No URL to fetch.";
                     continue;
                 }
+                
                 const originalStatus = `(${i + 1}/${total}) Fetching: ${product.name.substring(0, 30)}...`;
                 statusAreaElement.textContent = originalStatus;
 
-                const { doc, error } = await runFetchWithRetries(product.product_url, statusAreaElement, originalStatus);
-
-                if (error) {
-                    product.detail_error = `Fetch failed after retries: ${error.message}`;
-                } else {
+                try {
+                    const { doc } = await runFetchWithRetries(
+                        product.product_url, 
+                        statusAreaElement, 
+                        originalStatus,
+                        operationAbortController.signal
+                    );
                     Object.assign(product, scrapeProductDetailPage(doc));
+                } catch (error) {
+                    if (error.message === "Operation aborted" || error.message === "Operation stopped") {
+                        break;
+                    }
+                    product.detail_error = `Fetch failed: ${error.message}`;
                 }
+                
                 updateDisplayFunc();
                 if (isOperationRunning && i < total - 1) await sleepRandom();
             }
             statusAreaElement.textContent = isOperationRunning ? 'Finished fetching all details.' : 'Fetching stopped by user.';
+        } catch (error) {
+            statusAreaElement.textContent = `Error during detail fetching: ${error.message}`;
         } finally {
             isOperationRunning = false;
+            operationAbortController = null;
             toggleOperationControls(false);
             progressBarElement.style.display = 'none';
             updateUIForActiveTab();
@@ -703,9 +892,13 @@
         if (!deleteBtn && !copyBtn && !expandBtn) return;
 
         const productItem = e.target.closest('.product-item');
+        if (!productItem) return;
+        
         const index = parseInt(productItem.dataset.productIndex, 10);
         const tabType = productItem.dataset.tabType;
         const productList = tabType === 'scraper' ? scrapedProducts : trolleyProducts;
+        
+        if (index < 0 || index >= productList.length) return;
         const product = productList[index];
 
         if (deleteBtn) {
@@ -713,13 +906,21 @@
             if (tabType === 'scraper') updateScraperResultsDisplay();
             else updateTrolleyResultsDisplay();
         } else if (copyBtn) {
-            copyToClipboard(JSON.stringify(product, null, 2));
-            copyBtn.classList.add('copied');
-            copyBtn.innerHTML = icons.check;
-            setTimeout(() => {
-                copyBtn.classList.remove('copied');
-                copyBtn.innerHTML = icons.copy;
-            }, 1500);
+            try {
+                const success = await copyToClipboard(JSON.stringify(product, null, 2));
+                if (success) {
+                    copyBtn.classList.add('copied');
+                    copyBtn.innerHTML = icons.check;
+                    setTimeout(() => {
+                        copyBtn.classList.remove('copied');
+                        copyBtn.innerHTML = icons.copy;
+                    }, 1500);
+                } else {
+                    console.error('Failed to copy to clipboard');
+                }
+            } catch (error) {
+                console.error('Copy error:', error);
+            }
         } else if (expandBtn) {
             const wrapper = e.target.closest('.product-item-wrapper');
             const detailsContainer = wrapper.querySelector('.product-details-expanded');
@@ -756,12 +957,11 @@
         detailsContainer.style.display = 'block';
         expandBtn.disabled = true;
 
-        const { doc, error } = await runFetchWithRetries(product.product_url, null, '');
-
-        if (error) {
-            Object.assign(product, { detail_error: `Fetch failed: ${error.message}` });
-        } else {
+        try {
+            const { doc } = await runFetchWithRetries(product.product_url, null, '', null);
             Object.assign(product, scrapeProductDetailPage(doc));
+        } catch (error) {
+            Object.assign(product, { detail_error: `Fetch failed: ${error.message}` });
         }
 
         renderExpandedDetails(detailsContainer, product);
@@ -773,9 +973,9 @@
         const keysToIgnore = new Set(['name', 'price', 'unit_price', 'image_url', 'product_url', 'itemTotal', 'quantity']);
         let html = '<dl class="details-dl">';
         for (const key in product) {
-            if (!keysToIgnore.has(key) && product[key]) {
+            if (!keysToIgnore.has(key) && product[key] && product[key] !== 'N/A') {
                 const prettyKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                html += `<dt>${prettyKey}</dt><dd>${product[key]}</dd>`;
+                html += `<dt>${prettyKey}</dt><dd>${String(product[key]).substring(0, 500)}</dd>`;
             }
         }
         html += '</dl>';
@@ -785,10 +985,11 @@
     // --- EXPORT & MENU FUNCTIONS ---
     function toggleExportMenu() {
         const menu = document.getElementById('export-menu');
-        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        if (menu) {
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
     }
 
-    // NEW: Central function to execute any export action
     function executeExportAction(action) {
         switch (action) {
             case 'copy-json':      exportJSON(false); break;
@@ -800,26 +1001,25 @@
         }
     }
 
-    // MODIFIED: This function now executes the action immediately
     function selectExportOption(e) {
         const option = e.currentTarget;
         const action = option.dataset.action;
         const mainBtn = document.getElementById('export-main-btn');
 
-        // Update the main button to show the last used action
-        mainBtn.innerHTML = option.innerHTML;
-        mainBtn.dataset.action = action;
+        if (mainBtn) {
+            mainBtn.innerHTML = option.innerHTML;
+            mainBtn.dataset.action = action;
+        }
 
-        // Hide the menu
-        document.getElementById('export-menu').style.display = 'none';
+        const menu = document.getElementById('export-menu');
+        if (menu) menu.style.display = 'none';
 
-        // Immediately execute the chosen action
         executeExportAction(action);
     }
 
-    // MODIFIED: This now just calls the central execution function
     function handleExport() {
-        const action = document.getElementById('export-main-btn').dataset.action;
+        const mainBtn = document.getElementById('export-main-btn');
+        const action = mainBtn ? mainBtn.dataset.action : 'copy-json';
         executeExportAction(action);
     }
 
@@ -865,7 +1065,6 @@
         const toggleBtn = document.getElementById('export-toggle-btn');
         if (toggleBtn) toggleBtn.disabled = true;
 
-
         setTimeout(() => {
             btn.innerHTML = originalHTML;
             btn.dataset.action = originalAction;
@@ -875,42 +1074,50 @@
         }, 2000);
     }
 
-    function exportJSON(download = false) {
+    async function exportJSON(download = false) {
         const dataToExport = prepareDataForExport();
-        if (dataToExport.items && dataToExport.items.length === 0) {
+        if (!dataToExport.items || dataToExport.items.length === 0) {
             alert('No data to export.');
             return;
         }
+        
         const jsonString = JSON.stringify(dataToExport, null, 2);
+        
         if (download) {
             const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.json`;
             downloadFile(filename, jsonString, 'application/json');
         } else {
-            copyToClipboard(jsonString);
-            showCopyFeedback('export-main-btn');
+            const success = await copyToClipboard(jsonString);
+            if (success) {
+                showCopyFeedback('export-main-btn');
+            } else {
+                alert('Failed to copy to clipboard. Try downloading instead.');
+            }
         }
     }
 
-    function exportCSV(download = false) {
+    async function exportCSV(download = false) {
         const dataToExport = prepareDataForExport();
         const itemsArray = dataToExport.items;
+        
+        if (!itemsArray || itemsArray.length === 0) {
+            alert('No data to export.');
+            return;
+        }
+
         let csvContent = '';
 
         if (dataToExport.totalPrice !== undefined) {
             csvContent = `Total Price,"${dataToExport.totalPriceFormatted}"\n\n`;
         }
 
-        if (!itemsArray || itemsArray.length === 0) {
-            alert('No data to export.');
-            return;
-        }
-
         const headers = Array.from(new Set(itemsArray.flatMap(Object.keys)));
         csvContent += headers.join(',') + '\n';
+        
         itemsArray.forEach(product => {
             csvContent += headers.map(header => {
                 let value = String(product[header] || '').replace(/"/g, '""');
-                return (value.includes(',') || value.includes('\n')) ? `"${value}"` : value;
+                return (value.includes(',') || value.includes('\n') || value.includes('"')) ? `"${value}"` : value;
             }).join(',') + '\n';
         });
 
@@ -918,8 +1125,12 @@
             const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.csv`;
             downloadFile(filename, csvContent, 'text/csv;charset=utf-8;');
         } else {
-            copyToClipboard(csvContent);
-            showCopyFeedback('export-main-btn');
+            const success = await copyToClipboard(csvContent);
+            if (success) {
+                showCopyFeedback('export-main-btn');
+            } else {
+                alert('Failed to copy to clipboard. Try downloading instead.');
+            }
         }
     }
 
@@ -936,6 +1147,7 @@
             rating: 'Rating', review_count: 'Review Count', barcode_gtin: 'Barcode (GTIN)',
             product_url: 'Product URL', detail_error: 'Error'
         };
+        
         const keyOrder = [
             'detailed_name', 'brand', 'description', 'detailed_current_price', 'price',
             'detailed_original_price', 'savings', 'unit_price', 'quantity', 'itemTotal', 'rating',
@@ -948,7 +1160,7 @@
             const name = product.detailed_name || product.name || 'Unnamed Product';
             md += `## Product Name: ${name}\n`;
 
-            if (product.image_url) {
+            if (product.image_url && settings.includeImageUrlOnCopy) {
                 md += `![${name} Image](${product.image_url})\n`;
             }
             md += '\n';
@@ -961,7 +1173,7 @@
                     if (key === 'itemTotal' && typeof value === 'number') {
                         value = `$${value.toFixed(2)}`;
                     }
-                    mdList += `- **${displayName}**: ${String(value).replace(/\n/g, ' ')}\n`;
+                    mdList += `- **${displayName}**: ${String(value).replace(/\n/g, ' ').substring(0, 200)}\n`;
                 }
             });
             md += mdList ? mdList + '\n' : '';
@@ -975,18 +1187,23 @@
         return md;
     }
 
-    function exportMarkdown(download = false) {
+    async function exportMarkdown(download = false) {
         const mdContent = generateMarkdown();
         if (!mdContent) {
             alert('No data to export.');
             return;
         }
+        
         if (download) {
             const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.md`;
             downloadFile(filename, mdContent, 'text/markdown;charset=utf-8;');
         } else {
-            copyToClipboard(mdContent);
-            showCopyFeedback('export-main-btn');
+            const success = await copyToClipboard(mdContent);
+            if (success) {
+                showCopyFeedback('export-main-btn');
+            } else {
+                alert('Failed to copy to clipboard. Try downloading instead.');
+            }
         }
     }
 
@@ -1005,18 +1222,44 @@
 
     function makeDraggable(element, handle) {
         let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-        handle.onmousedown = e => {
+        
+        if (handle) {
+            handle.onmousedown = dragMouseDown;
+        } else {
+            element.onmousedown = dragMouseDown;
+        }
+
+        function dragMouseDown(e) {
             e.preventDefault();
-            pos3 = e.clientX; pos4 = e.clientY;
-            document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
-            document.onmousemove = e => {
-                e.preventDefault();
-                pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
-                pos3 = e.clientX; pos4 = e.clientY;
-                element.style.top = (element.offsetTop - pos2) + "px";
-                element.style.left = (element.offsetLeft - pos1) + "px";
-            };
-        };
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+        }
+
+        function elementDrag(e) {
+            e.preventDefault();
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            
+            const newTop = element.offsetTop - pos2;
+            const newLeft = element.offsetLeft - pos1;
+            
+            // Keep element within viewport
+            const rect = element.getBoundingClientRect();
+            const maxTop = window.innerHeight - rect.height;
+            const maxLeft = window.innerWidth - rect.width;
+            
+            element.style.top = Math.max(0, Math.min(newTop, maxTop)) + "px";
+            element.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + "px";
+        }
+
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
     }
 
     function setupPageChangeMonitoring() {
@@ -1024,7 +1267,9 @@
         const observer = new MutationObserver(() => {
             if (window.location.href !== currentUrl) {
                 currentUrl = window.location.href;
-                setTimeout(() => { if (!isOperationRunning) updateUIForActiveTab(); }, 1500);
+                setTimeout(() => {
+                    if (!isOperationRunning) updateUIForActiveTab();
+                }, 1500);
             }
         });
         observer.observe(document.body, { childList: true, subtree: true });
@@ -1185,6 +1430,7 @@
     // --- INITIALIZATION ---
     function initialize() {
         console.log('Coles Scraper & Exporter: Initializing...');
+        validateSettings();
         createUI();
         setupPageChangeMonitoring();
         switchTab('scraper');
