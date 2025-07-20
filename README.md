@@ -10,7 +10,7 @@ Before using these scripts, you need to install a userscript manager extension i
 
 - **Firefox**: [Violentmonkey](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/) (Recommended)
 - **Chrome/Chromium**: [Violentmonkey](https://chrome.google.com/webstore/detail/violentmonkey/jinjaccalgkegednnccohejagnlnfdag) (Recommended)
-- **Safari**: [Tampermonkey](https://apps.apple.com/us/app/tampermonkey/id6738342400) (Recommended)
+- **Safari**: [Userscripts](https://apps.apple.com/us/app/userscripts/id1463298887) (Recommended)
 
 ### Installation Steps
 
