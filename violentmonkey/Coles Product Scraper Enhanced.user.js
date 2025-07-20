@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Coles Scraper
 // @namespace    http://tampermonkey.net/
-// @version      5.5
-// @description  A comprehensive Coles tool with a tabbed UI for scraping products, including detailed data fetching and an interactive visual list display.
+// @version      6.0
+// @description  A comprehensive Coles tool with a tabbed UI for scraping products, including detailed data fetching, an interactive visual list display, and multiple export formats (JSON, CSV, Markdown).
 // @author       Artificial Intelligence LOL & Gemini
 // @match        https://www.coles.com.au/*
 // @grant        GM_addStyle
@@ -237,7 +237,7 @@
         uiPanel.style.display = 'none';
         uiPanel.innerHTML = `
             <div id="coles-scraper-header">
-                <span>Coles Scraper v5.5</span>
+                <span>Coles Scraper v6.0</span>
                 <button id="close-panel-btn" title="Close">✕</button>
             </div>
             <div id="coles-scraper-tabs">
@@ -267,8 +267,18 @@
 
                 <!-- Shared Controls -->
                 <div class="button-group export-group">
-                    <button id="export-json-btn">${icons.copy} Copy JSON</button>
-                    <button id="export-csv-btn">${icons.copy} Copy CSV</button>
+                    <div class="export-btn-container">
+                        <button id="export-main-btn" data-action="copy-json">${icons.copy} Copy JSON</button>
+                        <button id="export-toggle-btn" aria-label="More export options">▼</button>
+                        <div id="export-menu" style="display: none;">
+                            <div class="export-option" data-action="copy-json">${icons.copy} Copy JSON</div>
+                            <div class="export-option" data-action="download-json">${icons.scrapeAll} Download JSON</div>
+                            <div class="export-option" data-action="copy-csv">${icons.copy} Copy CSV</div>
+                            <div class="export-option" data-action="download-csv">${icons.scrapeAll} Download CSV</div>
+                            <div class="export-option" data-action="copy-md">${icons.copy} Copy Markdown</div>
+                            <div class="export-option" data-action="download-md">${icons.scrapeAll} Download Markdown</div>
+                        </div>
+                    </div>
                     <button id="clear-btn">${icons.clear} Clear</button>
                 </div>
                 <details id="scraper-settings">
@@ -298,10 +308,22 @@
         uiToggleButton.addEventListener('click', togglePanel);
         document.getElementById('close-panel-btn').addEventListener('click', togglePanel);
         document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
-        document.getElementById('export-json-btn').addEventListener('click', exportJSON);
-        document.getElementById('export-csv-btn').addEventListener('click', exportCSV);
         document.getElementById('clear-btn').addEventListener('click', clearResults);
-        uiPanel.addEventListener('click', handleProductActions); // Delegated listener for product actions
+        uiPanel.addEventListener('click', handleProductActions);
+
+        // Export listeners
+        document.getElementById('export-main-btn').addEventListener('click', handleExport);
+        document.getElementById('export-toggle-btn').addEventListener('click', toggleExportMenu);
+        document.querySelectorAll('.export-option').forEach(option => {
+            option.addEventListener('click', selectExportOption);
+        });
+        document.addEventListener('click', (e) => {
+            const container = document.querySelector('.export-btn-container');
+            if (container && !container.contains(e.target)) {
+                const menu = document.getElementById('export-menu');
+                if(menu) menu.style.display = 'none';
+            }
+        });
 
         // Settings listeners
         document.getElementById('min-delay').addEventListener('input', e => { settings.minDelay = parseInt(e.target.value, 10) || 0; });
@@ -312,7 +334,7 @@
         document.getElementById('include-prod-url').addEventListener('change', e => { settings.includeProductUrlOnCopy = e.target.checked; });
 
         makeDraggable(uiPanel, document.getElementById('coles-scraper-header'));
-        updateUIForActiveTab(); // Initial UI update
+        updateUIForActiveTab();
     }
 
     function switchTab(tabId) {
@@ -323,7 +345,7 @@
         activeTab = tabId;
         document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabId));
         document.querySelectorAll('.tab-content').forEach(content => content.classList.toggle('active', content.id === `${tabId}-tab-content`));
-        updateUIForActiveTab(); // Update UI for the newly active tab
+        updateUIForActiveTab();
     }
 
     function togglePanel() {
@@ -332,15 +354,13 @@
         uiToggleButton.style.display = isExpanded ? 'none' : 'flex';
     }
 
-    // Toggles disabled state for all non-stop buttons and settings
     function toggleOperationControls(isRunning) {
-        document.querySelectorAll('.button-group button, .export-group button').forEach(btn => {
+        document.querySelectorAll('.button-group button').forEach(btn => {
             if (!btn.classList.contains('stop-button')) btn.disabled = isRunning;
         });
-        document.querySelectorAll('.product-action-btn').forEach(btn => btn.disabled = isRunning); // Disable inline actions too
+        document.querySelectorAll('.product-action-btn').forEach(btn => btn.disabled = isRunning);
         document.getElementById('scraper-settings').style.pointerEvents = isRunning ? 'none' : 'auto';
         document.getElementById('scraper-settings').style.opacity = isRunning ? 0.6 : 1;
-        // Show/hide and disable/enable stop buttons
         document.querySelectorAll('.stop-button').forEach(btn => {
             btn.style.display = isRunning ? 'inline-flex' : 'none';
             btn.disabled = !isRunning;
@@ -361,7 +381,7 @@
         const pageType = detectPageType();
         const container = document.getElementById('scraper-tab-action-buttons');
         if (!container) return;
-        container.innerHTML = ''; // Clear previous buttons
+        container.innerHTML = '';
 
         if (pageType === 'product-list') {
             container.innerHTML = `
@@ -406,11 +426,7 @@
             statusArea.textContent = `Displaying ${scrapedProducts.length} products.`;
             if (detailsBtn && !isOperationRunning) detailsBtn.disabled = false;
         } else {
-            const pageType = detectPageType();
-            const message = (pageType === 'product-list' || pageType === 'product-detail')
-                ? 'Click a button to start scraping.'
-                : 'Navigate to a Coles product page or search results.';
-            resultsArea.innerHTML = `<div class="info-message">${message}</div>`;
+            resultsArea.innerHTML = `<div class="info-message">Click a button to start scraping.</div>`;
             statusArea.textContent = '';
             if (detailsBtn) detailsBtn.disabled = true;
         }
@@ -426,7 +442,7 @@
         if (trolleyProducts.length > 0) {
             const total = trolleyProducts.reduce((acc, p) => acc + (p.itemTotal || 0), 0);
             totalArea.innerHTML = `<span>Trolley Total:</span> <span class="total-price-value">$${total.toFixed(2)}</span>`;
-            totalArea.style.display = 'flex'; // Use flex for styling
+            totalArea.style.display = 'flex';
 
             renderProductList(resultsArea, trolleyProducts, 'trolley');
             statusArea.textContent = `Displaying ${trolleyProducts.length} items from trolley.`;
@@ -443,7 +459,7 @@
     function handleStopOperation() {
         if (isOperationRunning) {
             isOperationRunning = false;
-            document.getElementById('scraper-tab-status').textContent = "Stopping operation..."; // Update both statuses for clarity
+            document.getElementById('scraper-tab-status').textContent = "Stopping operation...";
             document.getElementById('trolley-tab-status').textContent = "Stopping operation...";
             document.querySelectorAll('.stop-button').forEach(btn => btn.disabled = true);
         }
@@ -484,7 +500,7 @@
             trolleyButton.click();
             try {
                 await waitForElement('#trolley-drawer-available-items ul li');
-                await sleepFixed(250); // Extra delay for rendering
+                await sleepFixed(250);
             } catch (error) {
                 statusArea.textContent = 'Failed to load trolley content. Please try again.';
                 console.error("Trolley load error:", error);
@@ -505,7 +521,7 @@
     async function runFetchWithRetries(url, statusAreaElement, originalStatus) {
         let error = null;
         for (let i = 0; i <= settings.maxRetries; i++) {
-            if (!isOperationRunning && statusAreaElement) return { error: new Error("Operation stopped") }; // Check global stop
+            if (!isOperationRunning && statusAreaElement) return { error: new Error("Operation stopped") };
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -525,7 +541,7 @@
     async function handleScrapeAllPages() {
         if (isOperationRunning) return;
         isOperationRunning = true;
-        scrapedProducts = []; // Clear previous results
+        scrapedProducts = [];
         const statusArea = document.getElementById('scraper-tab-status');
         const progressBar = document.getElementById('scraper-tab-progress-bar');
         updateScraperResultsDisplay();
@@ -574,13 +590,12 @@
             statusArea.textContent = isOperationRunning ? `Finished scraping. Found ${scrapedProducts.length} products.` : 'Scraping stopped by user.';
         } finally {
             isOperationRunning = false;
-            toggleOperationControls(false); // Re-enable all buttons
+            toggleOperationControls(false);
             progressBar.style.display = 'none';
-            updateUIForActiveTab(); // Refresh UI state for the current tab
+            updateUIForActiveTab();
         }
     }
 
-    // --- GENERIC DETAIL FETCHER ---
     async function runDetailFetchProcess(productList, statusAreaElement, progressBarElement, updateDisplayFunc) {
         if (isOperationRunning || productList.length === 0) return;
         isOperationRunning = true;
@@ -611,20 +626,18 @@
                 } else {
                     Object.assign(product, scrapeProductDetailPage(doc));
                 }
-                // Instead of full re-render, just update the single item if possible, or do full render
-                updateDisplayFunc(); // Full re-render is simpler for this bulk operation
+                updateDisplayFunc();
                 if (isOperationRunning && i < total - 1) await sleepRandom();
             }
             statusAreaElement.textContent = isOperationRunning ? 'Finished fetching all details.' : 'Fetching stopped by user.';
         } finally {
             isOperationRunning = false;
-            toggleOperationControls(false); // Re-enable all buttons
+            toggleOperationControls(false);
             progressBarElement.style.display = 'none';
-            updateUIForActiveTab(); // Refresh UI state for the current tab
+            updateUIForActiveTab();
         }
     }
 
-    // Specific handlers that call the generic fetcher
     async function handleFetchScraperDetails() {
         await runDetailFetchProcess(
             scrapedProducts,
@@ -643,9 +656,8 @@
         );
     }
 
-    // --- NEW: SINGLE ITEM ACTIONS ---
     async function handleProductActions(e) {
-        if (isOperationRunning) return; // Don't allow actions during a bulk operation
+        if (isOperationRunning) return;
 
         const deleteBtn = e.target.closest('.product-delete-btn');
         const copyBtn = e.target.closest('.product-copy-btn');
@@ -666,10 +678,10 @@
         } else if (copyBtn) {
             GM_setClipboard(JSON.stringify(product, null, 2));
             copyBtn.classList.add('copied');
-            copyBtn.innerHTML = icons.check; // Change to check icon
+            copyBtn.innerHTML = icons.check;
             setTimeout(() => {
                 copyBtn.classList.remove('copied');
-                copyBtn.innerHTML = icons.copy; // Back to copy icon
+                copyBtn.innerHTML = icons.copy;
             }, 1500);
         } else if (expandBtn) {
             const wrapper = e.target.closest('.product-item-wrapper');
@@ -680,13 +692,11 @@
                 detailsContainer.style.display = 'none';
                 expandBtn.innerHTML = icons.expand;
             } else {
-                // Check if details are already loaded
                 if (product.detailed_name || product.detail_error) {
                     renderExpandedDetails(detailsContainer, product);
                     detailsContainer.style.display = 'block';
                     expandBtn.innerHTML = icons.collapse;
                 } else {
-                    // Fetch details for the first time
                     await fetchAndDisplaySingleDetail(index, tabType, detailsContainer, expandBtn);
                 }
             }
@@ -709,7 +719,6 @@
         detailsContainer.style.display = 'block';
         expandBtn.disabled = true;
 
-        // Use a null status element for runFetchWithRetries to avoid updating the main status line
         const { doc, error } = await runFetchWithRetries(product.product_url, null, '');
 
         if (error) {
@@ -736,7 +745,44 @@
         container.innerHTML = html;
     }
 
-    // --- EXPORT FUNCTIONS & OTHERS ---
+    // --- EXPORT & MENU FUNCTIONS ---
+    function toggleExportMenu() {
+        const menu = document.getElementById('export-menu');
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function selectExportOption(e) {
+        const option = e.currentTarget;
+        const action = option.dataset.action;
+        const mainBtn = document.getElementById('export-main-btn');
+        mainBtn.innerHTML = option.innerHTML;
+        mainBtn.dataset.action = action;
+        document.getElementById('export-menu').style.display = 'none';
+    }
+
+    function handleExport() {
+        const action = document.getElementById('export-main-btn').dataset.action;
+        switch (action) {
+            case 'copy-json':      exportJSON(false); break;
+            case 'download-json':  exportJSON(true); break;
+            case 'copy-csv':       exportCSV(false); break;
+            case 'download-csv':   exportCSV(true); break;
+            case 'copy-md':        exportMarkdown(false); break;
+            case 'download-md':    exportMarkdown(true); break;
+        }
+    }
+
+    function downloadFile(filename, content, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+    }
+
     function prepareDataForExport() {
         const sourceData = activeTab === 'scraper' ? scrapedProducts : trolleyProducts;
         const exportData = sourceData.map(p => {
@@ -746,18 +792,12 @@
             return newProd;
         });
 
-        // Unified format: always return an object with items array
-        const result = {
-            items: exportData
-        };
-
-        // Add total price for trolley data only
+        const result = { items: exportData };
         if (activeTab === 'trolley' && trolleyProducts.length > 0) {
             const total = trolleyProducts.reduce((acc, p) => acc + (p.itemTotal || 0), 0);
             result.totalPrice = parseFloat(total.toFixed(2));
             result.totalPriceFormatted = `$${total.toFixed(2)}`;
         }
-
         return result;
     }
 
@@ -766,39 +806,49 @@
         if (!btn) return;
 
         const originalHTML = btn.innerHTML;
+        const originalAction = btn.dataset.action;
         btn.innerHTML = `${icons.check} Copied`;
         btn.classList.add('copied-success');
         btn.disabled = true;
 
         setTimeout(() => {
             btn.innerHTML = originalHTML;
+            btn.dataset.action = originalAction;
             btn.classList.remove('copied-success');
-            btn.disabled = false;
+            const mainActionBtn = document.getElementById('export-main-btn');
+            const toggleBtn = document.getElementById('export-toggle-btn');
+            if (mainActionBtn) mainActionBtn.disabled = false;
+            if (toggleBtn) toggleBtn.disabled = false;
         }, 2000);
     }
 
-    function exportJSON() {
-        const dataToCopy = prepareDataForExport();
-        if (dataToCopy.items && dataToCopy.items.length === 0) {
-            alert('No data to copy.');
+    function exportJSON(download = false) {
+        const dataToExport = prepareDataForExport();
+        if (dataToExport.items && dataToExport.items.length === 0) {
+            alert('No data to export.');
             return;
         }
-        GM_setClipboard(JSON.stringify(dataToCopy, null, 2));
-        showCopyFeedback('export-json-btn');
+        const jsonString = JSON.stringify(dataToExport, null, 2);
+        if (download) {
+            const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.json`;
+            downloadFile(filename, jsonString, 'application/json');
+        } else {
+            GM_setClipboard(jsonString);
+            showCopyFeedback('export-main-btn');
+        }
     }
 
-    function exportCSV() {
-        const dataToCopy = prepareDataForExport();
-        const itemsArray = dataToCopy.items;
+    function exportCSV(download = false) {
+        const dataToExport = prepareDataForExport();
+        const itemsArray = dataToExport.items;
         let csvContent = '';
 
-        // Add total price info at the top for trolley data
-        if (dataToCopy.totalPrice !== undefined) {
-            csvContent = `Total Price,${dataToCopy.totalPriceFormatted}\n\n`;
+        if (dataToExport.totalPrice !== undefined) {
+            csvContent = `Total Price,"${dataToExport.totalPriceFormatted}"\n\n`;
         }
 
         if (!itemsArray || itemsArray.length === 0) {
-            alert('No data to copy.');
+            alert('No data to export.');
             return;
         }
 
@@ -811,8 +861,80 @@
             }).join(',') + '\n';
         });
 
-        GM_setClipboard(csvContent);
-        showCopyFeedback('export-csv-btn');
+        if (download) {
+            const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.csv`;
+            downloadFile(filename, csvContent, 'text/csv;charset=utf-8;');
+        } else {
+            GM_setClipboard(csvContent);
+            showCopyFeedback('export-main-btn');
+        }
+    }
+
+    function generateMarkdown() {
+        const sourceData = activeTab === 'scraper' ? scrapedProducts : trolleyProducts;
+        if (sourceData.length === 0) return null;
+
+        let md = `# ${activeTab === 'trolley' ? 'Trolley' : 'Product List'}\n\n`;
+
+        const keyMap = {
+            detailed_name: 'Full Name', brand: 'Brand', description: 'Description',
+            detailed_current_price: 'Current Price', price: 'Price', detailed_original_price: 'Original Price',
+            savings: 'Savings', unit_price: 'Unit Price', quantity: 'Quantity', itemTotal: 'Subtotal',
+            rating: 'Rating', review_count: 'Review Count', barcode_gtin: 'Barcode (GTIN)',
+            product_url: 'Product URL', detail_error: 'Error'
+        };
+        const keyOrder = [
+            'detailed_name', 'brand', 'description', 'detailed_current_price', 'price',
+            'detailed_original_price', 'savings', 'unit_price', 'quantity', 'itemTotal', 'rating',
+            'review_count', 'barcode_gtin', 'ingredients', 'allergens', 'claims',
+            'country_of_origin', 'storage_instructions', 'product_url', 'detail_error'
+        ];
+
+        sourceData.forEach(product => {
+            md += '---\n\n';
+            const name = product.detailed_name || product.name || 'Unnamed Product';
+            md += `## Product Name: ${name}\n`;
+
+            if (product.image_url) {
+                md += `![${name} Image](${product.image_url})\n`;
+            }
+            md += '\n';
+
+            let mdList = '';
+            keyOrder.forEach(key => {
+                if (product[key] && product[key] !== 'N/A' && product[key] !== 'None' && String(product[key]).trim() !== '') {
+                    const displayName = keyMap[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    let value = product[key];
+                    if (key === 'itemTotal' && typeof value === 'number') {
+                        value = `$${value.toFixed(2)}`;
+                    }
+                    mdList += `- **${displayName}**: ${String(value).replace(/\n/g, ' ')}\n`;
+                }
+            });
+            md += mdList ? mdList + '\n' : '';
+        });
+
+        if (activeTab === 'trolley' && trolleyProducts.length > 0) {
+            md += '---\n\n';
+            const total = trolleyProducts.reduce((acc, p) => acc + (p.itemTotal || 0), 0);
+            md += `**Total: $${total.toFixed(2)}**\n`;
+        }
+        return md;
+    }
+
+    function exportMarkdown(download = false) {
+        const mdContent = generateMarkdown();
+        if (!mdContent) {
+            alert('No data to export.');
+            return;
+        }
+        if (download) {
+            const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.md`;
+            downloadFile(filename, mdContent, 'text/markdown;charset=utf-8;');
+        } else {
+            GM_setClipboard(mdContent);
+            showCopyFeedback('export-main-btn');
+        }
     }
 
     function clearResults() {
@@ -849,7 +971,6 @@
         const observer = new MutationObserver(() => {
             if (window.location.href !== currentUrl) {
                 currentUrl = window.location.href;
-                // Give the page a moment to render new content before updating UI
                 setTimeout(() => { if (!isOperationRunning) updateUIForActiveTab(); }, 1500);
             }
         });
@@ -899,28 +1020,18 @@
             border-radius: 6px; padding: 8px; box-sizing: border-box;
             overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
         }
-        .product-item-wrapper {
-            background-color: #fff; border: 1px solid #e9e9e9; border-radius: 4px;
-        }
-        .product-item {
-            display: flex; align-items: center; gap: 15px;
-            padding: 10px;
-        }
-        .product-item-img {
-            width: 60px; height: 60px; object-fit: contain; flex-shrink: 0;
-            border-radius: 4px;
-        }
+        .product-item-wrapper { background-color: #fff; border: 1px solid #e9e9e9; border-radius: 4px; }
+        .product-item { display: flex; align-items: center; gap: 15px; padding: 10px; }
+        .product-item-img { width: 60px; height: 60px; object-fit: contain; flex-shrink: 0; border-radius: 4px; }
         .product-item-details { flex: 1; min-width: 0; }
         .product-name {
-            font-weight: 600; color: var(--theme-text-primary);
-            margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            font-size: 14px;
+            font-weight: 600; color: var(--theme-text-primary); margin: 0 0 4px 0; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; font-size: 14px;
         }
         .product-price { font-weight: 700; color: var(--theme-red); margin: 0; font-size: 15px; }
         .product-unit-price { font-weight: 400; color: var(--theme-text-secondary); font-size: 12px; margin-left: 8px; }
         .product-quantity { font-size: 13px; color: var(--theme-text-secondary); margin: 4px 0 0 0;}
 
-        /* --- NEW STYLES for Item Actions and Details --- */
         .product-item-actions { display: flex; gap: 5px; align-items: center; }
         .product-action-btn {
             background-color: #f0f0f0; border: 1px solid #e0e0e0; color: var(--theme-text-secondary);
@@ -933,49 +1044,29 @@
         .product-delete-btn:hover:not(:disabled) { background-color: #ffebee; color: #c62828; }
         .product-copy-btn:hover:not(:disabled):not(.copied) { background-color: #e3f2fd; color: #1565c0; }
         .product-copy-btn.copied { background-color: var(--theme-green-success) !important; color: white !important; transition: all 0.3s ease; }
-        .product-details-expanded {
-            padding: 12px 15px; border-top: 1px solid #f0f0f0; background-color: #fafafa;
-            font-size: 13px;
-        }
+        .product-details-expanded { padding: 12px 15px; border-top: 1px solid #f0f0f0; background-color: #fafafa; font-size: 13px; }
         .details-loading { font-style: italic; color: var(--theme-text-secondary); }
         .details-dl { margin: 0; display: grid; grid-template-columns: 120px 1fr; gap: 8px; }
         .details-dl dt { font-weight: 600; color: var(--theme-text-primary); }
         .details-dl dd { margin: 0; color: var(--theme-text-secondary); word-break: break-word; }
-        /* --- END NEW STYLES --- */
 
         #trolley-total-price {
-            padding: 12px 18px;
-            background-color: var(--theme-background-light);
-            border: 1px solid var(--theme-border-light);
-            border-radius: 6px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--theme-text-primary);
+            padding: 12px 18px; background-color: var(--theme-background-light); border: 1px solid var(--theme-border-light);
+            border-radius: 6px; display: flex; justify-content: space-between; align-items: center;
+            font-size: 16px; font-weight: 600; color: var(--theme-text-primary);
         }
-        .total-price-value {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--theme-red);
-        }
+        .total-price-value { font-size: 18px; font-weight: 700; color: var(--theme-red); }
 
         .status-container { display: flex; flex-direction: column; gap: 8px; }
         #scraper-tab-status, #trolley-tab-status {
             font-style: italic; color: var(--theme-text-secondary); min-height: 1.2em; font-size: 14px;
         }
-        #scraper-tab-progress-bar, #trolley-tab-progress-bar {
-            width: 100%; height: 6px; border-radius: 3px; border: none;
-        }
-        #scraper-tab-progress-bar::-webkit-progress-bar, #trolley-tab-progress-bar::-webkit-progress-bar {
-            background-color: #f0f0f0; border-radius: 3px;
-        }
-        #scraper-tab-progress-bar::-webkit-progress-value, #trolley-tab-progress-bar::-webkit-progress-value {
-            background-color: var(--theme-red); border-radius: 3px; transition: width 0.3s ease;
-        }
+        #scraper-tab-progress-bar, #trolley-tab-progress-bar { width: 100%; height: 6px; border-radius: 3px; border: none; }
+        #scraper-tab-progress-bar::-webkit-progress-bar, #trolley-tab-progress-bar::-webkit-progress-bar { background-color: #f0f0f0; border-radius: 3px; }
+        #scraper-tab-progress-bar::-webkit-progress-value, #trolley-tab-progress-bar::-webkit-progress-value { background-color: var(--theme-red); border-radius: 3px; transition: width 0.3s ease; }
+
         .button-group { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-        .button-group.export-group { border-top: 1px solid var(--theme-border-light); padding-top: 15px; }
+        .button-group.export-group { border-top: 1px solid var(--theme-border-light); padding-top: 15px; justify-content: space-between; }
         .button-group button {
             display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px;
             border: 1px solid transparent; border-radius: 24px; cursor: pointer; transition: all 0.2s ease;
@@ -985,36 +1076,46 @@
         .button-group button:disabled { background-color: #e0e0e0 !important; color: #a0a0a0 !important; cursor: not-allowed; box-shadow: none; border-color: #e0e0e0 !important; }
         .button-group button svg { width: 16px; height: 16px; stroke-width: 2.5; stroke: currentColor; }
 
-        .button-group button.copied-success {
-            background-color: var(--theme-green-success) !important;
-            color: white !important;
-            border-color: var(--theme-green-success) !important;
-        }
-
-        #scraper-scrape-all-btn, #scraper-fetch-details-btn, #trolley-fetch-details-btn {
-            background-color: var(--theme-red); color: white;
-        }
-        #scraper-scrape-all-btn:hover:not(:disabled), #scraper-fetch-details-btn:hover:not(:disabled), #trolley-fetch-details-btn:hover:not(:disabled) {
-            background-color: var(--theme-red-dark);
-        }
-
-        #scraper-scrape-current-btn, #scraper-scrape-detail-btn, #export-json-btn, #export-csv-btn, #trolley-scrape-btn {
-            background-color: #fff; color: var(--theme-red); border: 1px solid var(--theme-red);
-        }
-        #scraper-scrape-current-btn:hover:not(:disabled), #scraper-scrape-detail-btn:hover:not(:disabled),
-        #export-json-btn:hover:not(:disabled), #export-csv-btn:hover:not(:disabled), #trolley-scrape-btn:hover:not(:disabled) {
-            background-color: var(--theme-red); color: #fff;
-        }
-
+        #scraper-scrape-all-btn, #scraper-fetch-details-btn, #trolley-fetch-details-btn { background-color: var(--theme-red); color: white; }
+        #scraper-scrape-all-btn:hover:not(:disabled), #scraper-fetch-details-btn:hover:not(:disabled), #trolley-fetch-details-btn:hover:not(:disabled) { background-color: var(--theme-red-dark); }
+        #scraper-scrape-current-btn, #scraper-scrape-detail-btn, #trolley-scrape-btn { background-color: #fff; color: var(--theme-red); border: 1px solid var(--theme-red); }
+        #scraper-scrape-current-btn:hover:not(:disabled), #scraper-scrape-detail-btn:hover:not(:disabled), #trolley-scrape-btn:hover:not(:disabled) { background-color: var(--theme-red); color: #fff; }
         #clear-btn { background-color: var(--theme-text-secondary); color: white; border-color: var(--theme-text-secondary); }
         #clear-btn:hover:not(:disabled) { background-color: var(--theme-text-primary); border-color: var(--theme-text-primary); }
         .stop-button { background-color: var(--theme-blue-stop); color: white; border-color: var(--theme-blue-stop); }
         .stop-button:hover:not(:disabled) { background-color: #0069d9; border-color: #0069d9; }
 
+        /* --- EXPORT DROPDOWN STYLES --- */
+        .export-btn-container { position: relative; display: flex; }
+        #export-main-btn {
+            border-radius: 24px 0 0 24px; border-right: none; background-color: #fff;
+            color: var(--theme-red); border: 1px solid var(--theme-red);
+        }
+        #export-main-btn:hover:not(:disabled) { background-color: var(--theme-red); color: #fff; }
+        #export-main-btn.copied-success {
+            background-color: var(--theme-green-success) !important; color: white !important;
+            border-color: var(--theme-green-success) !important;
+        }
+        #export-toggle-btn {
+            padding: 10px 12px; border-radius: 0 24px 24px 0; border: 1px solid var(--theme-red);
+            background-color: #fff; color: var(--theme-red); font-size: 10px; font-weight: bold; margin-left: -1px;
+        }
+        #export-toggle-btn:hover:not(:disabled) { background-color: var(--theme-red); color: #fff; }
+        #export-menu {
+            position: absolute; bottom: 110%; left: 0; background-color: #fff; border: 1px solid var(--theme-border-light);
+            border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 10; width: 220px; overflow: hidden;
+        }
+        .export-option {
+            display: flex; align-items: center; gap: 10px; padding: 10px 15px; cursor: pointer;
+            font-size: 14px; color: var(--theme-text-primary); transition: background-color 0.2s;
+        }
+        .export-option:hover { background-color: var(--theme-background-light); }
+        .export-option svg { width: 16px; height: 16px; stroke-width: 2; color: var(--theme-text-secondary); }
+
         .info-message {
-            display: flex; align-items: center; justify-content: center; height: 100%;
-            width: 100%; color: #666; font-style: italic; text-align: center;
-            padding: 20px; background-color: transparent; border-radius: 6px; box-sizing: border-box;
+            display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;
+            color: #666; font-style: italic; text-align: center; padding: 20px; background-color: transparent;
+            border-radius: 6px; box-sizing: border-box;
         }
         #scraper-settings { border: 1px solid var(--theme-border-light); border-radius: 6px; background-color: #fff; transition: opacity 0.3s; margin-top: 5px; }
         #scraper-settings summary { font-weight: 600; cursor: pointer; padding: 12px 15px; color: var(--theme-text-primary); border-radius: 6px; }
@@ -1033,11 +1134,10 @@
         console.log('Coles Scraper & Exporter: Initializing...');
         createUI();
         setupPageChangeMonitoring();
-        switchTab('scraper'); // Ensure correct tab is shown on load and UI is updated
+        switchTab('scraper');
         console.log('Coles Scraper & Exporter: Ready!');
     }
 
-    // Defer initialization until the page is fully loaded
     if (document.readyState === 'complete') {
         initialize();
     } else {
