@@ -47,12 +47,49 @@
         includeProductUrlOnCopy: true,
     };
 
-    // --- UTILITY FUNCTIONS ---
+    // --- UTILITY FUNCTIONS & CLIPBOARD HELPER ---
     const sleepRandom = () => {
         const delay = Math.random() * (settings.maxDelay - settings.minDelay) + settings.minDelay;
         return new Promise(resolve => setTimeout(resolve, delay));
     };
     const sleepFixed = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    /**
+     * Robust cross-platform clipboard copy.
+     * Returns true on success, false otherwise.
+     */
+    function copyToClipboard(text) {
+        try {
+            /* 1) Tampermonkey / Violentmonkey native API ------------------ */
+            if (typeof GM_setClipboard === 'function') {
+                GM_setClipboard(text, 'text');   // the 2nd argument is required in some engines
+                return true;
+            }
+        } catch (e) { /* fall through */ }
+
+        /* 2) Modern browsers (requires HTTPS & user gesture) -------------- */
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text)
+                .then(() => true)
+                .catch(() => false);
+        }
+
+        /* 3) Legacy fallback --------------------------------------------- */
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return ok;
+        } catch (e) {
+            console.error('Clipboard copy failed:', e);
+            return false;
+        }
+    }
 
     const waitForElement = (selector, timeout = 5000) => new Promise((resolve, reject) => {
         const intervalTime = 100;
@@ -676,7 +713,7 @@
             if (tabType === 'scraper') updateScraperResultsDisplay();
             else updateTrolleyResultsDisplay();
         } else if (copyBtn) {
-            GM_setClipboard(JSON.stringify(product, null, 2));
+            copyToClipboard(JSON.stringify(product, null, 2));
             copyBtn.classList.add('copied');
             copyBtn.innerHTML = icons.check;
             setTimeout(() => {
@@ -849,7 +886,7 @@
             const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.json`;
             downloadFile(filename, jsonString, 'application/json');
         } else {
-            GM_setClipboard(jsonString);
+            copyToClipboard(jsonString);
             showCopyFeedback('export-main-btn');
         }
     }
@@ -881,7 +918,7 @@
             const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.csv`;
             downloadFile(filename, csvContent, 'text/csv;charset=utf-8;');
         } else {
-            GM_setClipboard(csvContent);
+            copyToClipboard(csvContent);
             showCopyFeedback('export-main-btn');
         }
     }
@@ -948,7 +985,7 @@
             const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.md`;
             downloadFile(filename, mdContent, 'text/markdown;charset=utf-8;');
         } else {
-            GM_setClipboard(mdContent);
+            copyToClipboard(mdContent);
             showCopyFeedback('export-main-btn');
         }
     }
