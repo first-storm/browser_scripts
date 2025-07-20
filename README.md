@@ -38,3 +38,8 @@ This script bypasses the `c.pc.qq.com` redirect page, which is often used by Ten
 (YouTube Subtitle Download Assistant) This script intelligently detects if a YouTube video provides subtitles and automatically shows or hides a download button accordingly. It integrates seamlessly into the YouTube player controls, offering a stable and aesthetically pleasing solution for downloading subtitles via DownSub.com.
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/YouTube字幕下载助手.user.js)
+
+### 8. Chemist Warehouse Scraper ([`ChemistWarehouseScraper.js`](violentmonkey/ChemistWarehouseScraper.js))
+A comprehensive CW tool with a tabbed UI for scraping product information from Chemist Warehouse. Features include scraping current search/product listing pages, scraping all products across multiple pages, fetching detailed product information, and scraping items from the user's trolley. Data can be exported in JSON, CSV, or Markdown format.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/ChemistWarehouseScraper.js)
