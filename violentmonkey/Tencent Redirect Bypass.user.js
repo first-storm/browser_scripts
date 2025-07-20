@@ -5,6 +5,8 @@
 // @author       LMFuture
 // @match        https://c.pc.qq.com/*
 // @grant        none
+// @downloadURL  https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Tencent%20Redirect%20Bypass.user.js
+// @updateURL    https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Tencent%20Redirect%20Bypass.user.js
 // ==/UserScript==
 
 (function () {

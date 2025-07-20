@@ -8,6 +8,8 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=downsub.com
 // @grant        GM_addStyle
 // @grant        GM_openInTab
+// @downloadURL  https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/YouTube%E5%AD%97%E5%B9%95%E4%B8%8B%E8%BD%BD%E5%8A%A9%E6%89%8B.user.js
+// @updateURL    https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/YouTube%E5%AD%97%E5%B9%95%E4%B8%8B%E8%BD%BD%E5%8A%A9%E6%89%8B.user.js
 // ==/UserScript==
 
 (function() {

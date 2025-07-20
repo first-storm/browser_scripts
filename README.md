@@ -4,47 +4,75 @@ This repository contains a collection of personal user scripts designed to enhan
 
 ## Scripts Overview
 
-### 1. Coles Product Scraper Enhanced ([`Coles Product Scraper Enhanced.user.js`](violentmonkey/Coles%20Product%20Scraper%20Enhanced.user.js))
-A comprehensive tool for scraping product information from the Coles Australia website. It features a tabbed UI, allowing users to scrape products from current search/product listing pages, scrape all products across multiple pages, fetch detailed information for scraped products, and scrape items from the user's trolley. Data can be exported in JSON or CSV format, and advanced settings for delay, retries, and data inclusion are available.
+### 🛒 Scrapers
 
-[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Coles%20Product%20Scraper%20Enhanced.user.js)
+A set of comprehensive tools for scraping product information from major Australian retailers. Each script features a tabbed UI, supports scraping from current search/product listing pages, auto-pagination, detailed data fetching, cart/trolley exporting, and multiple export formats (JSON, CSV, Markdown). Advanced settings for delay, retries, and data inclusion are available.
 
-### 2. Increase Moodle login timeout warning. ([`Increase Moodle login timeout warning..user.js`](violentmonkey/Increase%20Moodle%20login%20timeout%20warning..user.js))
+#### Coles Product Scraper Enhanced
+[`ColesScraper.user.js`](violentmonkey/ColesScraper.user.js)
+
+Scrapes product information from the Coles Australia website, including trolley items.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/ColesScraper.user.js)
+
+#### Chemist Warehouse Scraper
+[`ChemistWarehouseScraper.user.js`](violentmonkey/ChemistWarehouseScraper.user.js)
+
+Scrapes product information from Chemist Warehouse, with export options including Markdown.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/ChemistWarehouseScraper.user.js)
+
+#### Woolworths Scraper
+[`woolworth.user.js`](violentmonkey/woolworth.user.js)
+
+Scrapes products from Woolworths, supporting detailed data, cart export, and visual lists.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/woolworth.user.js)
+
+### 🎓 Educational Tools
+
+#### Increase Moodle Login Timeout Warning
+[`Increase Moodle login timeout warning..user.js`](violentmonkey/Increase%20Moodle%20login%20timeout%20warning..user.js)
+
 This script aims to prevent automatic logout from Moodle by increasing the login timeout warning. It continuously checks for and clicks on session extension buttons that appear in Moodle modals, ensuring the user remains logged in during long sessions.
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Increase%20Moodle%20login%20timeout%20warning..user.js)
 
-### 3. Netflix Plus ([`Netflix Plus.user.js`](violentmonkey/Netflix%20Plus.user.js))
-Enhances the Netflix viewing experience by enabling the best available audio and video quality. It includes features like forcing maximum bitrate, showing all audio tracks and subtitles, enabling Dolby and HE-AAC 5.1 audio, and options to focus on specific video qualities (e.g., 1080P, AV1, VP9). It also includes a fix for Edge fullscreen issues and a household check bypass.
+#### Screenshot & Copy Question on Mobius (UNSW)
+[`Screenshot & Copy Question on Mobius(UNSW).user.js`](violentmonkey/Screenshot%20&%20Copy%20Question%20on%20Mobius(UNSW).user.js)
 
-[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Netflix%20Plus.user.js)
-
-### 4. Screenshot & Copy Question on Mobius(UNSW) ([`Screenshot & Copy Question on Mobius(UNSW).user.js`](violentmonkey/Screenshot%20&%20Copy%20Question%20on%20Mobius(UNSW).user.js))
 Designed for students using Mobius (UNSW), this script adds a button to capture and copy a screenshot of the question container. It uses `html2canvas` to render the question area and copies the image to the clipboard, simplifying the process of saving or sharing specific questions.
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Screenshot%20%26%20Copy%20Question%20on%20Mobius(UNSW).user.js)
 
-### 5. Selection and Copying Restorer (Universal) ([`Selection and Copying Restorer (Universal).user.js`](violentmonkey/Selection%20and%20Copying%20Restorer%20(Universal).user.js))
+### 🎬 Media Enhancement
+
+#### Netflix Plus
+[`Netflix Plus.user.js`](violentmonkey/Netflix%20Plus.user.js)
+
+Enhances the Netflix viewing experience by enabling the best available audio and video quality. It includes features like forcing maximum bitrate, showing all audio tracks and subtitles, enabling Dolby and HE-AAC 5.1 audio, and options to focus on specific video qualities (e.g., 1080P, AV1, VP9). It also includes a fix for Edge fullscreen issues and a household check bypass.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Netflix%20Plus.user.js)
+
+#### YouTube字幕下载助手 (YouTube Subtitle Download Assistant)
+[`YouTube字幕下载助手.user.js`](violentmonkey/YouTube字幕下载助手.user.js)
+
+This script intelligently detects if a YouTube video provides subtitles and automatically shows or hides a download button accordingly. It integrates seamlessly into the YouTube player controls, offering a stable and aesthetically pleasing solution for downloading subtitles via DownSub.com.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/YouTube字幕下载助手.user.js)
+
+### 🛠️ Browser Enhancement
+
+#### Selection and Copying Restorer (Universal)
+[`Selection and Copying Restorer (Universal).user.js`](violentmonkey/Selection%20and%20Copying%20Restorer%20(Universal).user.js)
+
 A universal script to unlock right-click functionality and remove restrictions on text selection, copying, cutting, and image right-clicking on various websites. It also enhances functionality by allowing Alt-key based hyperlink text selection and includes options to prevent repetitive auxiliary clicks and control hover effects on images.
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Selection%20and%20Copying%20Restorer%20(Universal).user.js)
 
-### 6. Tencent Redirect Bypass ([`Tencent Redirect Bypass.user.js`](violentmonkey/Tencent%20Redirect%20Bypass.user.js))
+#### Tencent Redirect Bypass
+[`Tencent Redirect Bypass.user.js`](violentmonkey/Tencent%20Redirect%20Bypass.user.js)
+
 This script bypasses the `c.pc.qq.com` redirect page, which is often used by Tencent for security warnings before navigating to external links. It displays a custom, elegant提示界面 (prompt interface) and automatically redirects to the real URL after a short delay, improving user experience by removing an unnecessary interstitial page.
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Tencent%20Redirect%20Bypass.user.js)
-
-### 7. YouTube字幕下载助手 ([`YouTube字幕下载助手.user.js`](violentmonkey/YouTube字幕下载助手.user.js))
-(YouTube Subtitle Download Assistant) This script intelligently detects if a YouTube video provides subtitles and automatically shows or hides a download button accordingly. It integrates seamlessly into the YouTube player controls, offering a stable and aesthetically pleasing solution for downloading subtitles via DownSub.com.
-
-[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/YouTube字幕下载助手.user.js)
-
-### 8. Chemist Warehouse Scraper ([`ChemistWarehouseScraper.user.js`](violentmonkey/ChemistWarehouseScraper.user.js))
-A comprehensive CW tool with a tabbed UI for scraping product information from Chemist Warehouse. Features include scraping current search/product listing pages, scraping all products across multiple pages, fetching detailed product information, and scraping items from the user's trolley. Data can be exported in JSON, CSV, or Markdown format.
-
-[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/ChemistWarehouseScraper.user.js)
-
-### 9. Woolworths Scraper ([`woolworth.user.js`](violentmonkey/woolworth.user.js))
-A comprehensive Woolworths tool with a tabbed UI for scraping products from search or detail pages, with auto-pagination, detailed data fetching, cart exporting, an interactive visual list, and multiple export formats (JSON, CSV, Markdown). Features include scraping current search/product listing pages, scraping all products across multiple pages, fetching detailed product information, and scraping items from the user's trolley. Data can be exported in JSON, CSV, or Markdown format, with advanced settings for delay, retries, and data inclusion.
-
-[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/woolworth.user.js)
