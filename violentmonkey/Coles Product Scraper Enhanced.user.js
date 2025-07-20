@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Coles Scraper
 // @namespace    http://tampermonkey.net/
-// @version      6.0
+// @version      6.1
 // @description  A comprehensive Coles tool with a tabbed UI for scraping products, including detailed data fetching, an interactive visual list display, and multiple export formats (JSON, CSV, Markdown).
 // @author       Artificial Intelligence LOL & Gemini
 // @match        https://www.coles.com.au/*
@@ -237,7 +237,7 @@
         uiPanel.style.display = 'none';
         uiPanel.innerHTML = `
             <div id="coles-scraper-header">
-                <span>Coles Scraper v6.0</span>
+                <span>Coles Scraper v6.1</span>
                 <button id="close-panel-btn" title="Close">✕</button>
             </div>
             <div id="coles-scraper-tabs">
@@ -751,17 +751,8 @@
         menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
     }
 
-    function selectExportOption(e) {
-        const option = e.currentTarget;
-        const action = option.dataset.action;
-        const mainBtn = document.getElementById('export-main-btn');
-        mainBtn.innerHTML = option.innerHTML;
-        mainBtn.dataset.action = action;
-        document.getElementById('export-menu').style.display = 'none';
-    }
-
-    function handleExport() {
-        const action = document.getElementById('export-main-btn').dataset.action;
+    // NEW: Central function to execute any export action
+    function executeExportAction(action) {
         switch (action) {
             case 'copy-json':      exportJSON(false); break;
             case 'download-json':  exportJSON(true); break;
@@ -770,6 +761,29 @@
             case 'copy-md':        exportMarkdown(false); break;
             case 'download-md':    exportMarkdown(true); break;
         }
+    }
+
+    // MODIFIED: This function now executes the action immediately
+    function selectExportOption(e) {
+        const option = e.currentTarget;
+        const action = option.dataset.action;
+        const mainBtn = document.getElementById('export-main-btn');
+
+        // Update the main button to show the last used action
+        mainBtn.innerHTML = option.innerHTML;
+        mainBtn.dataset.action = action;
+
+        // Hide the menu
+        document.getElementById('export-menu').style.display = 'none';
+
+        // Immediately execute the chosen action
+        executeExportAction(action);
+    }
+
+    // MODIFIED: This now just calls the central execution function
+    function handleExport() {
+        const action = document.getElementById('export-main-btn').dataset.action;
+        executeExportAction(action);
     }
 
     function downloadFile(filename, content, mimeType) {
@@ -811,13 +825,15 @@
         btn.classList.add('copied-success');
         btn.disabled = true;
 
+        const toggleBtn = document.getElementById('export-toggle-btn');
+        if (toggleBtn) toggleBtn.disabled = true;
+
+
         setTimeout(() => {
             btn.innerHTML = originalHTML;
             btn.dataset.action = originalAction;
             btn.classList.remove('copied-success');
-            const mainActionBtn = document.getElementById('export-main-btn');
-            const toggleBtn = document.getElementById('export-toggle-btn');
-            if (mainActionBtn) mainActionBtn.disabled = false;
+            btn.disabled = false;
             if (toggleBtn) toggleBtn.disabled = false;
         }, 2000);
     }
