@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Chemist Warehouse Scraper
 // @namespace    http://tampermonkey.net/
-// @version      2.5
-// @description  A comprehensive CW tool with a tabbed UI. "Scrape All Pages" now simulates clicking the NEXT button for more reliable scraping on dynamic pages. UI updated to better match the site's style. "Scrape This Product" is now more robust.
+// @version      2.6
+// @description  A comprehensive CW tool with a tabbed UI. "Scrape All Pages" now simulates clicking the NEXT button for more reliable scraping on dynamic pages. UI updated to better match the site's style. "Scrape This Product" is now more robust. Added a retry button for failed detail fetches.
 // @author       Artificial Intelligence & Gemini
 // @match        https://www.chemistwarehouse.com.au/*
 // @grant        GM_addStyle
@@ -447,7 +447,7 @@
         uiPanel.style.display = 'none';
         uiPanel.innerHTML = `
             <div id="cw-scraper-header">
-                <span>CW Scraper v2.5</span>
+                <span>CW Scraper v2.6</span>
                 <button id="close-panel-btn" title="Close">✕</button>
             </div>
             <div id="cw-scraper-tabs">
@@ -1079,6 +1079,22 @@
         const deleteBtn = e.target.closest('.product-delete-btn');
         const copyBtn = e.target.closest('.product-copy-btn');
         const expandBtn = e.target.closest('.product-expand-btn');
+        const retryBtn = e.target.closest('.product-retry-btn');
+
+        if (retryBtn) {
+            const productWrapper = e.target.closest('.product-item-wrapper');
+            if (!productWrapper) return;
+
+            const expandBtnFromWrapper = productWrapper.querySelector('.product-expand-btn');
+            const detailsContainer = productWrapper.querySelector('.product-details-expanded');
+            const index = parseInt(retryBtn.dataset.productIndex, 10);
+            const tabType = retryBtn.dataset.tabType;
+
+            if (!isNaN(index) && detailsContainer && expandBtnFromWrapper && tabType === 'scraper') {
+                await fetchAndDisplaySingleDetail(index, tabType, detailsContainer, expandBtnFromWrapper);
+            }
+            return;
+        }
 
         if (!deleteBtn && !copyBtn && !expandBtn) return;
 
@@ -1129,14 +1145,14 @@
             } else {
                 if (tabType === 'trolley') {
                     product.detail_error = "Details cannot be fetched from the cart. Please use the Scraper tab for full details.";
-                    renderExpandedDetails(detailsContainer, product);
+                    renderExpandedDetails(detailsContainer, product, index, tabType);
                     detailsContainer.style.display = 'block';
                     expandBtn.innerHTML = icons.collapse;
                     return;
                 }
 
                 if (product.detailed_name || product.detail_error) {
-                    renderExpandedDetails(detailsContainer, product);
+                    renderExpandedDetails(detailsContainer, product, index, tabType);
                     detailsContainer.style.display = 'block';
                     expandBtn.innerHTML = icons.collapse;
                 } else {
@@ -1152,7 +1168,7 @@
 
         if (!product.product_url || product.product_url.includes('N/A')) {
             product.detail_error = "No URL to fetch.";
-            renderExpandedDetails(detailsContainer, product);
+            renderExpandedDetails(detailsContainer, product, index, tabType);
             detailsContainer.style.display = 'block';
             expandBtn.innerHTML = icons.collapse;
             return;
@@ -1170,12 +1186,12 @@
             Object.assign(product, scrapeProductDetailPage(doc));
         }
 
-        renderExpandedDetails(detailsContainer, product);
+        renderExpandedDetails(detailsContainer, product, index, tabType);
         expandBtn.innerHTML = icons.collapse;
         expandBtn.disabled = false;
     }
 
-    function renderExpandedDetails(container, product) {
+    function renderExpandedDetails(container, product, index, tabType) {
         if (!container || !product) return;
 
         const keysToIgnore = new Set(['name', 'price', 'rrp_info', 'product_url', 'itemTotal', 'quantity', 'itemPrice']);
@@ -1191,7 +1207,12 @@
             const value = product[key];
             if (value && !keysToIgnore.has(key) && String(value).trim() !== '') {
                 const prettyKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                const formattedValue = String(value).replace(/\n/g, '<br>');
+                let formattedValue = String(value).replace(/\n/g, '<br>');
+
+                if (key === 'detail_error' && index !== undefined && tabType === 'scraper') {
+                    formattedValue += ` <button class="product-retry-btn" data-product-index="${index}" data-tab-type="${tabType}" title="Retry Fetching Details">${icons.fetchDetails} Retry</button>`;
+                }
+
                 html += `<dt>${prettyKey}</dt><dd>${formattedValue}</dd>`;
             }
         });
@@ -1800,6 +1821,35 @@
             color: var(--cw-text-secondary);
             word-break: break-word;
         }
+        
+        .product-retry-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 8px;
+            margin-left: 8px;
+            vertical-align: middle;
+            background-color: #f0f0f0;
+            border: 1px solid #d0d0d0;
+            color: var(--cw-text-secondary);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .product-retry-btn:hover {
+            background-color: #e0e0e0;
+            color: var(--cw-text-primary);
+            border-color: #c0c0c0;
+        }
+
+        .product-retry-btn svg {
+            width: 14px;
+            height: 14px;
+            stroke-width: 2;
+        }
 
         #trolley-total-price {
             padding: 12px 18px;
@@ -2106,7 +2156,7 @@
         // Set initial tab
         switchTab('scraper');
 
-        console.log('Chemist Warehouse Scraper v2.5: Ready!');
+        console.log('Chemist Warehouse Scraper v2.6: Ready!');
     }
 
     // Cleanup function for page unload

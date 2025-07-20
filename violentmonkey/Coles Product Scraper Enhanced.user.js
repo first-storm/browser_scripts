@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Coles Scraper
 // @namespace    http://tampermonkey.net/
-// @version      6.2
+// @version      6.3
 // @description  A comprehensive Coles tool with a tabbed UI for scraping products, including detailed data fetching, an interactive visual list display, and multiple export formats (JSON, CSV, Markdown).
 // @author       Artificial Intelligence LOL & Gemini
 // @match        https://www.coles.com.au/*
@@ -10,7 +10,7 @@
 // @run-at       document-idle
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     // --- SVG ICONS ---
@@ -26,7 +26,8 @@
         trash: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>`,
         check: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
         expand: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`,
-        collapse: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`
+        collapse: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`,
+        retry: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>`
     };
 
     // --- GLOBAL STATE ---
@@ -111,7 +112,7 @@
             reject(new Error('Invalid timeout value'));
             return;
         }
-        
+
         const intervalTime = 100;
         let elapsedTime = 0;
         const interval = setInterval(() => {
@@ -165,7 +166,7 @@
             try {
                 const linkTag = tile.querySelector("a.product__link") || tile.querySelector('.product__message-title_area a.product__link');
                 let productUrl = "N/A";
-                
+
                 if (linkTag && linkTag.href) {
                     try {
                         productUrl = new URL(linkTag.href, window.location.origin).href;
@@ -173,7 +174,7 @@
                         productUrl = linkTag.href; // fallback to original href
                     }
                 }
-                
+
                 productsOnPage.push({
                     name: tile.querySelector("h2.product__title")?.textContent.trim() || "N/A",
                     product_url: productUrl,
@@ -181,8 +182,8 @@
                     unit_price: tile.querySelector("div.price__calculation_method")?.textContent.trim() || "N/A",
                     image_url: parseProductImageUrl(tile.querySelector("img[data-testid='product-image']"))
                 });
-            } catch (e) { 
-                console.error("Could not parse a product tile:", e); 
+            } catch (e) {
+                console.error("Could not parse a product tile:", e);
             }
         });
         return productsOnPage;
@@ -194,22 +195,22 @@
         if (!scriptTag || !scriptTag.textContent) {
             return { detail_error: "__NEXT_DATA__ script tag not found or empty." };
         }
-        
+
         try {
             const jsonData = JSON.parse(scriptTag.textContent);
             const productInfo = jsonData?.props?.pageProps?.product;
-            
+
             if (productInfo) {
                 const name = productInfo.name || '';
                 const size = productInfo.size || '';
                 productData.detailed_name = `${name} | ${size}`.replace(/^ \| | \| $/g, '');
                 productData.brand = productInfo.brand || 'N/A';
-                
+
                 const pricing = productInfo.pricing || {};
                 productData.detailed_current_price = pricing.now ? `$${pricing.now.toFixed(2)}` : 'N/A';
                 productData.detailed_original_price = pricing.was ? `$${pricing.was.toFixed(2)}` : 'None';
                 productData.savings = pricing.saveStatement || 'None';
-                
+
                 // Safely parse description
                 if (productInfo.longDescription) {
                     const tempDiv = document.createElement('div');
@@ -218,7 +219,7 @@
                 } else {
                     productData.description = 'N/A';
                 }
-                
+
                 // Process additional info
                 if (Array.isArray(productInfo.additionalInfo)) {
                     productInfo.additionalInfo.forEach(item => {
@@ -227,9 +228,9 @@
                         }
                     });
                 }
-                
+
                 productData.barcode_gtin = productInfo.gtin || 'N/A';
-                
+
                 // Rating and reviews
                 const ratingContainer = doc.querySelector('div[data-bv-show="rating_summary"][data-bv-ready="true"]');
                 if (ratingContainer) {
@@ -267,12 +268,12 @@
                 const imageElement = item.querySelector('img[data-testid="product-image"]');
                 const quantitySelect = item.querySelector('select[data-testid="quantity-picker-select"]');
                 const priceElement = item.querySelector('span[data-testid="product-pricing"]');
-                
+
                 if (!titleElement || !imageElement || !quantitySelect || !priceElement) return;
 
                 const quantity = parseInt(quantitySelect.value, 10);
                 const totalPrice = parseFloat(priceElement.textContent.replace('$', ''));
-                
+
                 if (isNaN(quantity) || isNaN(totalPrice)) return;
 
                 let productUrl = "N/A";
@@ -355,7 +356,7 @@
         uiPanel.style.display = 'none';
         uiPanel.innerHTML = `
             <div id="coles-scraper-header">
-                <span>Coles Scraper v6.2</span>
+                <span>Coles Scraper v6.3</span>
                 <button id="close-panel-btn" title="Close">✕</button>
             </div>
             <div id="coles-scraper-tabs">
@@ -439,7 +440,7 @@
             const container = document.querySelector('.export-btn-container');
             if (container && !container.contains(e.target)) {
                 const menu = document.getElementById('export-menu');
-                if(menu) menu.style.display = 'none';
+                if (menu) menu.style.display = 'none';
             }
         });
 
@@ -653,16 +654,16 @@
         if (isOperationRunning) return;
         const statusArea = document.getElementById('trolley-tab-status');
         statusArea.textContent = 'Opening trolley and scraping...';
-        
+
         try {
             // More robust trolley drawer detection
             let drawer = document.querySelector('div[data-testid="trolley-drawer"]');
             let isDrawerOpen = false;
-            
+
             if (drawer) {
                 const drawerRect = drawer.getBoundingClientRect();
-                isDrawerOpen = drawerRect.width > 0 && drawerRect.height > 0 && 
-                              getComputedStyle(drawer).visibility !== 'hidden';
+                isDrawerOpen = drawerRect.width > 0 && drawerRect.height > 0 &&
+                    getComputedStyle(drawer).visibility !== 'hidden';
             }
 
             if (!isDrawerOpen) {
@@ -699,7 +700,7 @@
     async function runFetchWithRetries(url, statusAreaElement, originalStatus, signal) {
         validateSettings();
         let error = null;
-        
+
         for (let i = 0; i <= settings.maxRetries; i++) {
             if (signal && signal.aborted) {
                 throw new Error("Operation aborted");
@@ -707,7 +708,7 @@
             if (!isOperationRunning && statusAreaElement) {
                 throw new Error("Operation stopped");
             }
-            
+
             try {
                 const response = await fetch(url, { signal });
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -717,9 +718,9 @@
                 if (signal && signal.aborted) throw e;
                 error = e;
                 if (i < settings.maxRetries) {
-                    if(statusAreaElement) statusAreaElement.textContent = `Fetch failed. Retrying... (${i + 1}/${settings.maxRetries})`;
+                    if (statusAreaElement) statusAreaElement.textContent = `Fetch failed. Retrying... (${i + 1}/${settings.maxRetries})`;
                     await sleepFixed(settings.retryDelay);
-                    if(statusAreaElement) statusAreaElement.textContent = originalStatus;
+                    if (statusAreaElement) statusAreaElement.textContent = originalStatus;
                 }
             }
         }
@@ -739,7 +740,7 @@
         try {
             const paginationTag = document.querySelector("div[data-testid='pagination-info']");
             let totalPages = 1;
-            
+
             if (paginationTag) {
                 const ofMatch = paginationTag.textContent.match(/of ([\d,]+)/);
                 const rangeMatch = paginationTag.textContent.match(/(\d+)\s*-\s*(\d+)/);
@@ -749,7 +750,7 @@
                     if (resultsOnPage > 0) totalPages = Math.ceil(totalResults / resultsOnPage);
                 }
             }
-            
+
             statusArea.textContent = `Found ${totalPages} pages. Starting scrape...`;
             progressBar.style.display = 'block';
             progressBar.value = 0;
@@ -763,19 +764,19 @@
                 const baseUrl = new URL(window.location.href);
                 for (let i = 2; i <= totalPages; i++) {
                     if (!isOperationRunning) break;
-                    
+
                     const originalStatus = `Fetching page ${i} of ${totalPages}...`;
                     statusArea.textContent = originalStatus;
                     baseUrl.searchParams.set('page', i);
 
                     try {
                         const { doc } = await runFetchWithRetries(
-                            baseUrl.href, 
-                            statusArea, 
-                            originalStatus, 
+                            baseUrl.href,
+                            statusArea,
+                            originalStatus,
                             operationAbortController.signal
                         );
-                        
+
                         const newProducts = scrapeSearchPage(doc);
                         if (newProducts.length === 0) {
                             statusArea.textContent = `No products on page ${i}. Stopping.`;
@@ -784,7 +785,7 @@
                         scrapedProducts.push(...newProducts);
                         progressBar.value = i;
                         updateScraperResultsDisplay();
-                        
+
                         if (isOperationRunning && i < totalPages) await sleepRandom();
                     } catch (error) {
                         if (error.message === "Operation aborted" || error.message === "Operation stopped") {
@@ -812,7 +813,7 @@
         isOperationRunning = true;
         operationAbortController = new AbortController();
         toggleOperationControls(true);
-        
+
         const total = productList.length;
         statusAreaElement.textContent = `Starting to fetch details for ${total} products...`;
         progressBarElement.style.display = 'block';
@@ -822,7 +823,7 @@
         try {
             for (let i = 0; i < total; i++) {
                 if (!isOperationRunning) break;
-                
+
                 const product = productList[i];
                 progressBarElement.value = i + 1;
 
@@ -830,14 +831,14 @@
                     product.detail_error = "No URL to fetch.";
                     continue;
                 }
-                
+
                 const originalStatus = `(${i + 1}/${total}) Fetching: ${product.name.substring(0, 30)}...`;
                 statusAreaElement.textContent = originalStatus;
 
                 try {
                     const { doc } = await runFetchWithRetries(
-                        product.product_url, 
-                        statusAreaElement, 
+                        product.product_url,
+                        statusAreaElement,
                         originalStatus,
                         operationAbortController.signal
                     );
@@ -848,7 +849,7 @@
                     }
                     product.detail_error = `Fetch failed: ${error.message}`;
                 }
-                
+
                 updateDisplayFunc();
                 if (isOperationRunning && i < total - 1) await sleepRandom();
             }
@@ -888,16 +889,20 @@
         const deleteBtn = e.target.closest('.product-delete-btn');
         const copyBtn = e.target.closest('.product-copy-btn');
         const expandBtn = e.target.closest('.product-expand-btn');
+        const retryBtn = e.target.closest('.product-retry-fetch-btn');
 
-        if (!deleteBtn && !copyBtn && !expandBtn) return;
+        if (!deleteBtn && !copyBtn && !expandBtn && !retryBtn) return;
 
-        const productItem = e.target.closest('.product-item');
+        const wrapper = e.target.closest('.product-item-wrapper');
+        if (!wrapper) return;
+
+        const productItem = wrapper.querySelector('.product-item');
         if (!productItem) return;
-        
+
         const index = parseInt(productItem.dataset.productIndex, 10);
         const tabType = productItem.dataset.tabType;
         const productList = tabType === 'scraper' ? scrapedProducts : trolleyProducts;
-        
+
         if (index < 0 || index >= productList.length) return;
         const product = productList[index];
 
@@ -921,8 +926,12 @@
             } catch (error) {
                 console.error('Copy error:', error);
             }
+        } else if (retryBtn) {
+            const detailsContainer = wrapper.querySelector('.product-details-expanded');
+            const expandBtnFromHeader = productItem.querySelector('.product-expand-btn');
+            delete product.detail_error;
+            await fetchAndDisplaySingleDetail(index, tabType, detailsContainer, expandBtnFromHeader);
         } else if (expandBtn) {
-            const wrapper = e.target.closest('.product-item-wrapper');
             const detailsContainer = wrapper.querySelector('.product-details-expanded');
             const isVisible = detailsContainer.style.display !== 'none';
 
@@ -949,13 +958,17 @@
             product.detail_error = "No URL to fetch.";
             renderExpandedDetails(detailsContainer, product);
             detailsContainer.style.display = 'block';
-            expandBtn.innerHTML = icons.collapse;
+            if (expandBtn) expandBtn.innerHTML = icons.collapse;
             return;
         }
 
         detailsContainer.innerHTML = `<div class="details-loading">Fetching details...</div>`;
         detailsContainer.style.display = 'block';
-        expandBtn.disabled = true;
+        if (expandBtn) {
+            expandBtn.disabled = true;
+            expandBtn.innerHTML = icons.collapse;
+        }
+
 
         try {
             const { doc } = await runFetchWithRetries(product.product_url, null, '', null);
@@ -965,19 +978,35 @@
         }
 
         renderExpandedDetails(detailsContainer, product);
-        expandBtn.innerHTML = icons.collapse;
-        expandBtn.disabled = false;
+        if (expandBtn) expandBtn.disabled = false;
     }
 
     function renderExpandedDetails(container, product) {
         const keysToIgnore = new Set(['name', 'price', 'unit_price', 'image_url', 'product_url', 'itemTotal', 'quantity']);
         let html = '<dl class="details-dl">';
+        let hasContent = false;
+
         for (const key in product) {
-            if (!keysToIgnore.has(key) && product[key] && product[key] !== 'N/A') {
+            if (!keysToIgnore.has(key) && product[key] && product[key] !== 'N/A' && String(product[key]).trim() !== '') {
                 const prettyKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                html += `<dt>${prettyKey}</dt><dd>${String(product[key]).substring(0, 500)}</dd>`;
+
+                if (key === 'detail_error') {
+                    html += `<dt>Error</dt>
+                             <dd class="details-error-dd">
+                                 <span>${String(product[key])}</span>
+                                 <button class="product-action-btn product-retry-fetch-btn" title="Retry Fetch">${icons.retry}</button>
+                             </dd>`;
+                } else {
+                    html += `<dt>${prettyKey}</dt><dd>${String(product[key]).substring(0, 500)}</dd>`;
+                }
+                hasContent = true;
             }
         }
+
+        if (!hasContent) {
+            html += '<dd style="grid-column: 1 / -1;">No additional details available.</dd>';
+        }
+
         html += '</dl>';
         container.innerHTML = html;
     }
@@ -992,12 +1021,12 @@
 
     function executeExportAction(action) {
         switch (action) {
-            case 'copy-json':      exportJSON(false); break;
-            case 'download-json':  exportJSON(true); break;
-            case 'copy-csv':       exportCSV(false); break;
-            case 'download-csv':   exportCSV(true); break;
-            case 'copy-md':        exportMarkdown(false); break;
-            case 'download-md':    exportMarkdown(true); break;
+            case 'copy-json': exportJSON(false); break;
+            case 'download-json': exportJSON(true); break;
+            case 'copy-csv': exportCSV(false); break;
+            case 'download-csv': exportCSV(true); break;
+            case 'copy-md': exportMarkdown(false); break;
+            case 'download-md': exportMarkdown(true); break;
         }
     }
 
@@ -1080,9 +1109,9 @@
             alert('No data to export.');
             return;
         }
-        
+
         const jsonString = JSON.stringify(dataToExport, null, 2);
-        
+
         if (download) {
             const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.json`;
             downloadFile(filename, jsonString, 'application/json');
@@ -1099,7 +1128,7 @@
     async function exportCSV(download = false) {
         const dataToExport = prepareDataForExport();
         const itemsArray = dataToExport.items;
-        
+
         if (!itemsArray || itemsArray.length === 0) {
             alert('No data to export.');
             return;
@@ -1113,7 +1142,7 @@
 
         const headers = Array.from(new Set(itemsArray.flatMap(Object.keys)));
         csvContent += headers.join(',') + '\n';
-        
+
         itemsArray.forEach(product => {
             csvContent += headers.map(header => {
                 let value = String(product[header] || '').replace(/"/g, '""');
@@ -1147,7 +1176,7 @@
             rating: 'Rating', review_count: 'Review Count', barcode_gtin: 'Barcode (GTIN)',
             product_url: 'Product URL', detail_error: 'Error'
         };
-        
+
         const keyOrder = [
             'detailed_name', 'brand', 'description', 'detailed_current_price', 'price',
             'detailed_original_price', 'savings', 'unit_price', 'quantity', 'itemTotal', 'rating',
@@ -1193,7 +1222,7 @@
             alert('No data to export.');
             return;
         }
-        
+
         if (download) {
             const filename = `${activeTab}_export_${new Date().toISOString().slice(0, 10)}.md`;
             downloadFile(filename, mdContent, 'text/markdown;charset=utf-8;');
@@ -1222,7 +1251,7 @@
 
     function makeDraggable(element, handle) {
         let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-        
+
         if (handle) {
             handle.onmousedown = dragMouseDown;
         } else {
@@ -1243,15 +1272,15 @@
             pos2 = pos4 - e.clientY;
             pos3 = e.clientX;
             pos4 = e.clientY;
-            
+
             const newTop = element.offsetTop - pos2;
             const newLeft = element.offsetLeft - pos1;
-            
+
             // Keep element within viewport
             const rect = element.getBoundingClientRect();
             const maxTop = window.innerHeight - rect.height;
             const maxLeft = window.innerWidth - rect.width;
-            
+
             element.style.top = Math.max(0, Math.min(newTop, maxTop)) + "px";
             element.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + "px";
         }
@@ -1334,7 +1363,7 @@
         .product-action-btn {
             background-color: #f0f0f0; border: 1px solid #e0e0e0; color: var(--theme-text-secondary);
             width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: all 0.2s ease;
+            cursor: pointer; transition: all 0.2s ease; flex-shrink: 0;
         }
         .product-action-btn:hover:not(:disabled) { background-color: #e0e0e0; color: var(--theme-text-primary); }
         .product-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1342,11 +1371,15 @@
         .product-delete-btn:hover:not(:disabled) { background-color: #ffebee; color: #c62828; }
         .product-copy-btn:hover:not(:disabled):not(.copied) { background-color: #e3f2fd; color: #1565c0; }
         .product-copy-btn.copied { background-color: var(--theme-green-success) !important; color: white !important; transition: all 0.3s ease; }
+        .product-retry-fetch-btn:hover:not(:disabled) { background-color: #e3f2fd; color: #1565c0; }
+
         .product-details-expanded { padding: 12px 15px; border-top: 1px solid #f0f0f0; background-color: #fafafa; font-size: 13px; }
         .details-loading { font-style: italic; color: var(--theme-text-secondary); }
         .details-dl { margin: 0; display: grid; grid-template-columns: 120px 1fr; gap: 8px; }
         .details-dl dt { font-weight: 600; color: var(--theme-text-primary); }
         .details-dl dd { margin: 0; color: var(--theme-text-secondary); word-break: break-word; }
+        .details-error-dd { display: flex; align-items: center; gap: 10px; color: #c62828; }
+        .details-error-dd span { flex-grow: 1; }
 
         #trolley-total-price {
             padding: 12px 18px; background-color: var(--theme-background-light); border: 1px solid var(--theme-border-light);
