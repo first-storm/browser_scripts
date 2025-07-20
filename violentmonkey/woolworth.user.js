@@ -1576,8 +1576,22 @@
             pos2 = pos4 - e.clientY;
             pos3 = e.clientX;
             pos4 = e.clientY;
-            element.style.top = (element.offsetTop - pos2) + "px";
-            element.style.left = (element.offsetLeft - pos1) + "px";
+
+            let newTop = element.offsetTop - pos2;
+            let newLeft = element.offsetLeft - pos1;
+
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            const elementWidth = element.offsetWidth;
+            const elementHeight = element.offsetHeight;
+
+            if (newTop < 0) newTop = 0;
+            if (newLeft < 0) newLeft = 0;
+            if (newTop + elementHeight > viewportHeight) newTop = viewportHeight - elementHeight;
+            if (newLeft + elementWidth > viewportWidth) newLeft = viewportWidth - elementWidth;
+
+            element.style.top = newTop + "px";
+            element.style.left = newLeft + "px";
         };
 
         const closeDragElement = () => {
