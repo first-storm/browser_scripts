@@ -8,7 +8,7 @@ This repository contains a collection of personal user scripts designed to enhan
 
 A set of comprehensive tools for scraping product information from major Australian retailers. Each script features a tabbed UI, supports scraping from current search/product listing pages, auto-pagination, detailed data fetching, cart/trolley exporting, and multiple export formats (JSON, CSV, Markdown). Advanced settings for delay, retries, and data inclusion are available.
 
-#### Coles Product Scraper Enhanced
+#### Coles Scraper
 [`ColesScraper.user.js`](violentmonkey/ColesScraper.user.js)
 
 Scrapes product information from the Coles Australia website, including trolley items.
