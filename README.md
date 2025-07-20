@@ -43,3 +43,8 @@ This script bypasses the `c.pc.qq.com` redirect page, which is often used by Ten
 A comprehensive CW tool with a tabbed UI for scraping product information from Chemist Warehouse. Features include scraping current search/product listing pages, scraping all products across multiple pages, fetching detailed product information, and scraping items from the user's trolley. Data can be exported in JSON, CSV, or Markdown format.
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/ChemistWarehouseScraper.user.js)
+
+### 9. Woolworths Scraper ([`woolworth.user.js`](violentmonkey/woolworth.user.js))
+A comprehensive Woolworths tool with a tabbed UI for scraping products from search or detail pages, with auto-pagination, detailed data fetching, cart exporting, an interactive visual list, and multiple export formats (JSON, CSV, Markdown). Features include scraping current search/product listing pages, scraping all products across multiple pages, fetching detailed product information, and scraping items from the user's trolley. Data can be exported in JSON, CSV, or Markdown format, with advanced settings for delay, retries, and data inclusion.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/woolworth.user.js)
