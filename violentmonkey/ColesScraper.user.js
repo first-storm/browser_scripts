@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Coles Scraper
 // @namespace    http://tampermonkey.net/
-// @version      6.3
+// @version      6.4
 // @description  A comprehensive Coles tool with a tabbed UI for scraping products, including detailed data fetching, an interactive visual list display, and multiple export formats (JSON, CSV, Markdown).
 // @author       Artificial Intelligence LOL & Gemini
 // @match        https://www.coles.com.au/*
@@ -242,6 +242,12 @@
                     productData.rating = 'N/A';
                     productData.review_count = 'N/A';
                 }
+
+                // --- 新增：从详情页 carousel 提取主图 ---
+                const detailImg = doc.querySelector('img[data-testid^="product-image"]');
+                if (detailImg) {
+                    productData.image_url = parseProductImageUrl(detailImg);
+                }
             } else {
                 productData.detail_error = "Product info not found in __NEXT_DATA__.";
             }
@@ -358,7 +364,7 @@
         uiPanel.style.display = 'none';
         uiPanel.innerHTML = `
             <div id="coles-scraper-header">
-                <span>Coles Scraper v6.3</span>
+                <span>Coles Scraper v6.4</span>
                 <button id="close-panel-btn" title="Close">✕</button>
             </div>
             <div id="coles-scraper-tabs">
@@ -1430,7 +1436,7 @@
             border-color: var(--theme-green-success) !important;
         }
         #export-toggle-btn {
-            padding: 10px 12px; border-radius: 0 24px 24px 0; border: 1px solid var(--theme-red);
+            padding:  10px 12px; border-radius: 0 24px 24px 0; border: 1px solid var(--theme-red);
             background-color: #fff; color: var(--theme-red); font-size: 10px; font-weight: bold; margin-left: -1px;
         }
         #export-toggle-btn:hover:not(:disabled) { background-color: var(--theme-red); color: #fff; }
