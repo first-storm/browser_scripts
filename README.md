@@ -92,6 +92,13 @@ This script intelligently detects if a YouTube video provides subtitles and auto
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/YouTube字幕下载助手.user.js)
 
+#### YouTube Music Playlist Exporter
+[`ytm-export.user.js`](violentmonkey/ytm-export.user.js)
+
+Adds a collapsible floating panel to YouTube Music playlist pages that allows you to export the full song list as CSV or JSON files. Features include automatic scrolling to load all songs in the playlist, elegant glassmorphism UI design, and support for both CSV and JSON export formats. The panel automatically appears only on playlist pages and provides a seamless export experience.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/ytm-export.user.js)
+
 ### 🛠️ Browser Enhancement
 
 #### Selection and Copying Restorer (Universal)
