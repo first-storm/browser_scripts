@@ -101,6 +101,13 @@ Adds a collapsible floating panel to YouTube Music playlist pages that allows yo
 
 ### 🛠️ Browser Enhancement
 
+#### Gemini Sidebar Padding Fix for Firefox
+[`GeminiSidebarPaddingFix.user.js`](violentmonkey/GeminiSidebarPaddingFix.user.js)
+
+Adjusts Gemini's sidebar padding for a symmetrical look in Firefox by balancing the space around the chat history list. This script fixes the asymmetry caused by Firefox's scrollbar rendering, ensuring a more visually pleasing interface.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/GeminiSidebarPaddingFix.user.js)
+
 #### Selection and Copying Restorer (Universal)
 [`Selection and Copying Restorer (Universal).user.js`](violentmonkey/Selection%20and%20Copying%20Restorer%20(Universal).user.js)
 
