@@ -69,6 +69,13 @@ This script aims to prevent automatic logout from Moodle by increasing the login
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Increase%20Moodle%20login%20timeout%20warning..user.js)
 
+#### Moodle Question Scraper to Markdown
+[`moodle-scraper.user.js`](violentmonkey/moodle-scraper.user.js)
+
+Scrapes Moodle quiz questions, uploads images to sm.ms, converts MathJax/HTML to Markdown, and shows results in a draggable panel. Includes copy-to-clipboard and API key management via menu.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/moodle-scraper.user.js)
+
 #### Screenshot & Copy Question on Mobius (UNSW)
 [`Screenshot & Copy Question on Mobius(UNSW).user.js`](violentmonkey/Screenshot%20&%20Copy%20Question%20on%20Mobius(UNSW).user.js)
 
