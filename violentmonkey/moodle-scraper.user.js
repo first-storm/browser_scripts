@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Moodle Question Scraper to Markdown
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Scrapes a Moodle question, uploads images to sm.ms, and formats it as Markdown in a floating panel.
 // @author       Genshin
 // @match        https://moodle.telt.unsw.edu.au/mod/quiz/attempt.php*
@@ -23,6 +23,7 @@
 
     // --- CONFIGURATION ---
     let SMMS_API_KEY = GM_getValue('SMMS_API_KEY', null);
+    let SCRAPE_SUMMARY = GM_getValue('SCRAPE_SUMMARY', false);
 
     // --- UI SETUP ---
     /**
@@ -158,6 +159,15 @@
                 background-color: #218838;
                 border-color: #218838;
             }
+            /* Add a secondary button style for Scrape All */
+            #scrape-all-btn {
+                background-color: #6c757d;
+                border-color: #6c757d;
+            }
+            #scrape-all-btn:hover {
+                background-color: #5a6268;
+                border-color: #545b62;
+            }
             /* Spinner */
             .scraper-spinner {
                 width: 18px; height: 18px; border: 2px solid rgba(0,0,0,0.15);
@@ -200,7 +210,8 @@
             </div>
             <div id="scraper-footer">
                 <div class="scraper-spinner" id="scraper-spinner" aria-label="Loading"></div>
-                <button id="scrape-btn" class="scraper-btn">Scrape Question</button>
+                <button id="scrape-btn" class="scraper-btn" style="display: none;">Scrape Question</button>
+                <button id="scrape-all-btn" class="scraper-btn" style="display: none;">Scrape All</button>
                 <button id="copy-btn" class="scraper-btn">Copy Markdown</button>
             </div>
         `;
@@ -212,9 +223,21 @@
 
         // Add event listeners
         document.getElementById('scrape-btn').addEventListener('click', processQuestion);
+        document.getElementById('scrape-all-btn').addEventListener('click', processAllQuestions);
         document.getElementById('copy-btn').addEventListener('click', copyMarkdown);
         document.getElementById('scraper-close-btn').addEventListener('click', togglePanel);
         toggle.addEventListener('click', togglePanel);
+
+        // Conditionally show buttons based on URL
+        const isReviewPage = window.location.href.includes('/mod/quiz/review.php');
+        const isAttemptPage = window.location.href.includes('/mod/quiz/attempt.php');
+
+        if (isAttemptPage) {
+            document.getElementById('scrape-btn').style.display = 'inline-block';
+        }
+        if (isReviewPage) {
+            document.getElementById('scrape-all-btn').style.display = 'inline-block';
+        }
 
         makeDraggable(panel);
     }
@@ -263,6 +286,15 @@
             GM_setValue('SMMS_API_KEY', key);
             alert("API Key saved successfully!");
         }
+    }
+
+    /**
+     * Toggles the summary scraping setting.
+     */
+    function toggleScrapeSummary() {
+        SCRAPE_SUMMARY = !SCRAPE_SUMMARY;
+        GM_setValue('SCRAPE_SUMMARY', SCRAPE_SUMMARY);
+        alert(`Scraping quiz summary is now ${SCRAPE_SUMMARY ? 'ENABLED' : 'DISABLED'}.`);
     }
 
     /**
@@ -319,6 +351,50 @@
         });
     }
 
+    // Small helper: process a cloned formulation element into Markdown (images, math, cleanup, html->md)
+    async function processFormulationElement(formulationEl) {
+        // Upload images
+        const images = formulationEl.querySelectorAll('img');
+        const uploadPromises = [];
+        for (const img of images) {
+            const promise = uploadImageToSmms(img.src)
+                .then(newUrl => {
+                    const alt = img.getAttribute('alt') || 'image';
+                    const markdownImg = document.createTextNode(`\n\n![${alt}](${newUrl})\n\n`);
+                    img.parentNode.replaceChild(markdownImg, img);
+                })
+                .catch(error => {
+                    console.error('Image upload failed:', error);
+                    const errorText = document.createTextNode(`\n[IMAGE UPLOAD FAILED: ${error}]\n`);
+                    img.parentNode.replaceChild(errorText, img);
+                });
+            uploadPromises.push(promise);
+        }
+        await Promise.all(uploadPromises);
+
+        // MathJax/LaTeX
+        const mathSpans = formulationEl.querySelectorAll('span.nolink');
+        mathSpans.forEach(span => {
+            const script = span.querySelector('script[type="math/tex"]') || span.nextElementSibling;
+            if (script && script.tagName === 'SCRIPT' && script.type === 'math/tex') {
+                const tex = script.textContent.trim();
+                const mathNode = document.createTextNode(`$${tex}$`);
+                span.parentNode.replaceChild(mathNode, span);
+            }
+        });
+
+        // Remove inputs and UI cruft
+        formulationEl.querySelectorAll('input, .stackinputfeedback, .im-controls, button, script').forEach(el => el.remove());
+
+        // HTML -> Markdown
+        let contentMarkdown = Array.from(formulationEl.childNodes).map(convertNodeToMarkdown).join('');
+        contentMarkdown = contentMarkdown
+            .replace(/&nbsp;/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+        return contentMarkdown;
+    }
+
     /**
      * Recursively converts an HTML node and its children to a Markdown string.
      * @param {Node} node - The HTML node to convert.
@@ -359,21 +435,18 @@
         const spinner = document.getElementById('scraper-spinner');
         const scrapeBtn = document.getElementById('scrape-btn');
         const copyBtn = document.getElementById('copy-btn');
+        const scrapeAllBtn = document.getElementById('scrape-all-btn');
 
         const startLoading = () => {
             if (spinner) spinner.style.display = 'inline-block';
-            if (scrapeBtn) {
-                scrapeBtn.classList.add('loading');
-                scrapeBtn.disabled = true;
-            }
+            if (scrapeBtn) { scrapeBtn.classList.add('loading'); scrapeBtn.disabled = true; }
+            if (scrapeAllBtn) { scrapeAllBtn.disabled = true; }
             if (copyBtn) copyBtn.disabled = true;
         };
         const stopLoading = () => {
             if (spinner) spinner.style.display = 'none';
-            if (scrapeBtn) {
-                scrapeBtn.classList.remove('loading');
-                scrapeBtn.disabled = false;
-            }
+            if (scrapeBtn) { scrapeBtn.classList.remove('loading'); scrapeBtn.disabled = false; }
+            if (scrapeAllBtn) { scrapeAllBtn.disabled = false; }
             if (copyBtn) copyBtn.disabled = false;
         };
 
@@ -398,53 +471,90 @@
                 output.value = "Error: Could not find question content (div.formulation).";
                 return;
             }
+
             output.value = "Found question. Uploading images...";
-
-            // --- Step 1: Process and upload images asynchronously ---
-            const images = formulationEl.querySelectorAll('img');
-            const uploadPromises = [];
-            for (const img of images) {
-                const promise = uploadImageToSmms(img.src)
-                    .then(newUrl => {
-                        const alt = img.getAttribute('alt') || 'image';
-                        const markdownImg = document.createTextNode(`\n\n![${alt}](${newUrl})\n\n`);
-                        img.parentNode.replaceChild(markdownImg, img);
-                    })
-                    .catch(error => {
-                        console.error('Image upload failed:', error);
-                        const errorText = document.createTextNode(`\n[IMAGE UPLOAD FAILED: ${error}]\n`);
-                        img.parentNode.replaceChild(errorText, img);
-                    });
-                uploadPromises.push(promise);
-            }
-            await Promise.all(uploadPromises);
-            output.value = "Images processed. Converting text and LaTeX...";
-
-            // --- Step 2: Process MathJax/LaTeX ---
-            const mathSpans = formulationEl.querySelectorAll('span.nolink');
-            mathSpans.forEach(span => {
-                const script = span.querySelector('script[type="math/tex"]') || span.nextElementSibling;
-                if (script && script.tagName === 'SCRIPT' && script.type === 'math/tex') {
-                    const tex = script.textContent.trim();
-                    const mathNode = document.createTextNode(`$${tex}$`);
-                    span.parentNode.replaceChild(mathNode, span);
-                }
-            });
-
-            // --- Step 3: Clean up unwanted HTML elements ---
-            formulationEl.querySelectorAll('input, .stackinputfeedback, .im-controls, button, script').forEach(el => el.remove());
-
-            // --- Step 4: Convert remaining HTML to Markdown ---
-            let contentMarkdown = Array.from(formulationEl.childNodes).map(convertNodeToMarkdown).join('');
-
-            // Final cleanup
-            contentMarkdown = contentMarkdown
-                .replace(/&nbsp;/g, ' ') // Replace non-breaking spaces
-                .replace(/\n{3,}/g, '\n\n') // Collapse excess newlines
-                .trim();
-
+            const contentMarkdown = await processFormulationElement(formulationEl);
             const finalMarkdown = `## Question ${questionNo}\n\n${contentMarkdown}`;
             output.value = finalMarkdown;
+        } catch (e) {
+            console.error(e);
+            output.value = `Error: ${e?.message || 'Unexpected error.'}`;
+        } finally {
+            stopLoading();
+        }
+    }
+
+    // NEW: Scrape all questions on review/attempt page, plus optional summary info
+    async function processAllQuestions() {
+        const output = document.getElementById('scraper-output');
+        const spinner = document.getElementById('scraper-spinner');
+        const scrapeBtn = document.getElementById('scrape-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const scrapeAllBtn = document.getElementById('scrape-all-btn');
+
+        const startLoading = () => {
+            if (spinner) spinner.style.display = 'inline-block';
+            if (scrapeAllBtn) { scrapeAllBtn.classList.add('loading'); scrapeAllBtn.disabled = true; }
+            if (scrapeBtn) scrapeBtn.disabled = true;
+            if (copyBtn) copyBtn.disabled = true;
+        };
+        const stopLoading = () => {
+            if (spinner) spinner.style.display = 'none';
+            if (scrapeAllBtn) { scrapeAllBtn.classList.remove('loading'); scrapeAllBtn.disabled = false; }
+            if (scrapeBtn) scrapeBtn.disabled = false;
+            if (copyBtn) copyBtn.disabled = false;
+        };
+
+        startLoading();
+        try {
+            output.value = "Processing all questions... Please wait.";
+            if (!SMMS_API_KEY) {
+                output.value = "Error: sm.ms API key not set.\nPlease set it via the Tampermonkey menu (top right extension icon).";
+                return;
+            }
+
+            const questions = Array.from(document.querySelectorAll('div.que'));
+            if (questions.length === 0) {
+                output.value = "Error: No questions found (div.que).";
+                return;
+            }
+
+            // Optional: scrape summary table at top of review page
+            let summaryMarkdown = '';
+            const summaryTable = document.querySelector('table.generaltable.quizreviewsummary, table.generaltable.generalbox.quizreviewsummary');
+            if (summaryTable && SCRAPE_SUMMARY) {
+                const rows = Array.from(summaryTable.querySelectorAll('tbody tr'));
+                const lines = [];
+                for (const tr of rows) {
+                    const th = tr.querySelector('th')?.textContent?.trim();
+                    const td = tr.querySelector('td')?.cloneNode(true);
+                    if (!th || !td) continue;
+                    // Strip any scripts/buttons and convert to markdown via existing converter
+                    td.querySelectorAll('script, button').forEach(e => e.remove());
+                    const md = Array.from(td.childNodes).map(convertNodeToMarkdown).join('')
+                        .replace(/&nbsp;/g, ' ')
+                        .replace(/\n{3,}/g, '\n\n')
+                        .trim();
+                    lines.push(`- ${th}: ${md || td.textContent.trim()}`);
+                }
+                if (lines.length) {
+                    summaryMarkdown = `# Quiz Summary\n\n${lines.join('\n')}\n`;
+                }
+            }
+
+            const results = [];
+            // Process sequentially to avoid hammering API; could be Promise.allSettled with concurrency if desired
+            for (const q of questions) {
+                const no = q.querySelector('.qno')?.textContent || 'N/A';
+                const formulation = q.querySelector('.formulation');
+                if (!formulation) continue;
+                const cloned = formulation.cloneNode(true);
+                const md = await processFormulationElement(cloned);
+                results.push(`## Question ${no}\n\n${md}`);
+            }
+
+            const final = [summaryMarkdown, results.join('\n\n---\n\n')].filter(Boolean).join('\n\n');
+            output.value = final || 'No content extracted.';
         } catch (e) {
             console.error(e);
             output.value = `Error: ${e?.message || 'Unexpected error.'}`;
@@ -496,6 +606,7 @@
         addStyles();
         createPanel();
         GM_registerMenuCommand('Set sm.ms API Key', setApiKey);
+        GM_registerMenuCommand('Toggle Scrape Quiz Summary', toggleScrapeSummary);
     }
 
     init();
