@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Moodle Question Scraper to Markdown
 // @namespace    http://tampermonkey.net/
-// @version      1.5
-// @description  Scrapes a Moodle question, uploads images to sm.ms, and formats it as Markdown in a floating panel.
+// @version      1.6
+// @description  Scrapes a Moodle question, uploads images to sm.ms or Imgbb, and formats it as Markdown in a floating panel.
 // @author       Genshin
 // @match        https://moodle.telt.unsw.edu.au/mod/quiz/attempt.php*
 // @match        https://moodle.telt.unsw.edu.au/mod/quiz/review.php*
@@ -13,6 +13,7 @@
 // @grant        GM_registerMenuCommand
 // @grant        GM_addStyle
 // @connect      sm.ms
+// @connect      api.imgbb.com
 // @connect      moodle.telt.unsw.edu.au
 // @updateURL    https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/moodle-scraper.user.js
 // @downloadURL  https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/moodle-scraper.user.js
@@ -23,6 +24,8 @@
 
     // --- CONFIGURATION ---
     let SMMS_API_KEY = GM_getValue('SMMS_API_KEY', null);
+    let IMGBB_API_KEY = GM_getValue('IMGBB_API_KEY', null);
+    let IMAGE_HOST_SERVICE = GM_getValue('IMAGE_HOST_SERVICE', 'smms'); // 'smms' or 'imgbb'
     let SCRAPE_SUMMARY = GM_getValue('SCRAPE_SUMMARY', false);
 
     // --- UI SETUP ---
@@ -279,22 +282,44 @@
     /**
      * Prompts the user to set their sm.ms API token.
      */
-    function setApiKey() {
+    function setSmmsApiKey() {
         const key = prompt("Please enter your sm.ms API Token:", SMMS_API_KEY || '');
         if (key) {
             SMMS_API_KEY = key;
             GM_setValue('SMMS_API_KEY', key);
-            alert("API Key saved successfully!");
+            alert("sm.ms API Key saved successfully!");
         }
     }
 
     /**
-     * Toggles the summary scraping setting.
+     * Prompts the user to set their Imgbb API key.
      */
-    function toggleScrapeSummary() {
-        SCRAPE_SUMMARY = !SCRAPE_SUMMARY;
-        GM_setValue('SCRAPE_SUMMARY', SCRAPE_SUMMARY);
-        alert(`Scraping quiz summary is now ${SCRAPE_SUMMARY ? 'ENABLED' : 'DISABLED'}.`);
+    function setImgbbApiKey() {
+        const key = prompt("Please enter your Imgbb API Key:", IMGBB_API_KEY || '');
+        if (key) {
+            IMGBB_API_KEY = key;
+            GM_setValue('IMGBB_API_KEY', key);
+            alert("Imgbb API Key saved successfully!");
+        }
+    }
+
+    /**
+     * Allows user to select image hosting service.
+     */
+    function selectImageHostService() {
+        const services = ['smms', 'imgbb'];
+        const current = IMAGE_HOST_SERVICE;
+        const choice = prompt(`Select image hosting service:\n1. sm.ms\n2. Imgbb\n\nEnter 1 or 2 (current: ${current}):`, current === 'smms' ? '1' : '2');
+
+        if (choice === '1') {
+            IMAGE_HOST_SERVICE = 'smms';
+            GM_setValue('IMAGE_HOST_SERVICE', 'smms');
+            alert("Image hosting service set to sm.ms");
+        } else if (choice === '2') {
+            IMAGE_HOST_SERVICE = 'imgbb';
+            GM_setValue('IMAGE_HOST_SERVICE', 'imgbb');
+            alert("Image hosting service set to Imgbb");
+        }
     }
 
     /**
@@ -351,13 +376,88 @@
         });
     }
 
+    /**
+     * Uploads an image from a URL to Imgbb.
+     * @param {string} imageUrl - The source URL of the image.
+     * @returns {Promise<string>} A promise that resolves with the new Imgbb URL.
+     */
+    function uploadImageToImgbb(imageUrl) {
+        return new Promise((resolve, reject) => {
+            if (!IMGBB_API_KEY) {
+                return reject("Imgbb API key is not set.");
+            }
+
+            // 1. Fetch image from Moodle as a blob
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: imageUrl,
+                responseType: 'blob',
+                onload: function(response) {
+                    const blob = response.response;
+
+                    // Convert blob to base64
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const base64Data = reader.result.split(',')[1]; // Remove data:image/...;base64, prefix
+
+                        const formData = new FormData();
+                        formData.append('key', IMGBB_API_KEY);
+                        formData.append('image', base64Data);
+
+                        // 2. Upload to Imgbb
+                        GM_xmlhttpRequest({
+                            method: "POST",
+                            url: 'https://api.imgbb.com/1/upload',
+                            data: formData,
+                            onload: function(uploadResponse) {
+                                try {
+                                    const json = JSON.parse(uploadResponse.responseText);
+                                    if (json.success) {
+                                        resolve(json.data.url);
+                                    } else {
+                                        reject(json.error?.message || "Unknown upload error");
+                                    }
+                                } catch (e) {
+                                    reject("Failed to parse Imgbb response.");
+                                }
+                            },
+                            onerror: function(error) {
+                                reject("Network error during upload to Imgbb.");
+                            }
+                        });
+                    };
+                    reader.onerror = function() {
+                        reject("Failed to convert image to base64.");
+                    };
+                    reader.readAsDataURL(blob);
+                },
+                onerror: function(error) {
+                    reject("Failed to fetch image from Moodle.");
+                }
+            });
+        });
+    }
+
+    /**
+     * Uploads an image using the selected hosting service.
+     * @param {string} imageUrl - The source URL of the image.
+     * @returns {Promise<string>} A promise that resolves with the new hosted URL.
+     */
+    function uploadImage(imageUrl) {
+        if (IMAGE_HOST_SERVICE === 'imgbb') {
+            return uploadImageToImgbb(imageUrl);
+        } else {
+            return uploadImageToSmms(imageUrl);
+        }
+    }
+
     // Small helper: process a cloned formulation element into Markdown (images, math, cleanup, html->md)
     async function processFormulationElement(formulationEl) {
         // Upload images
         const images = formulationEl.querySelectorAll('img');
         const uploadPromises = [];
         for (const img of images) {
-            const promise = uploadImageToSmms(img.src)
+            const promise = uploadImage(img.src)
                 .then(newUrl => {
                     const alt = img.getAttribute('alt') || 'image';
                     const markdownImg = document.createTextNode(`\n\n![${alt}](${newUrl})\n\n`);
@@ -453,8 +553,11 @@
         startLoading();
         try {
             output.value = "Processing... Please wait.";
-            if (!SMMS_API_KEY) {
-                output.value = "Error: sm.ms API key not set.\nPlease set it via the Tampermonkey menu (top right extension icon).";
+            const currentService = IMAGE_HOST_SERVICE === 'imgbb' ? 'Imgbb' : 'sm.ms';
+            const requiredKey = IMAGE_HOST_SERVICE === 'imgbb' ? IMGBB_API_KEY : SMMS_API_KEY;
+
+            if (!requiredKey) {
+                output.value = `Error: ${currentService} API key not set.\nPlease set it via the Tampermonkey menu (top right extension icon).`;
                 return;
             }
 
@@ -508,8 +611,11 @@
         startLoading();
         try {
             output.value = "Processing all questions... Please wait.";
-            if (!SMMS_API_KEY) {
-                output.value = "Error: sm.ms API key not set.\nPlease set it via the Tampermonkey menu (top right extension icon).";
+            const currentService = IMAGE_HOST_SERVICE === 'imgbb' ? 'Imgbb' : 'sm.ms';
+            const requiredKey = IMAGE_HOST_SERVICE === 'imgbb' ? IMGBB_API_KEY : SMMS_API_KEY;
+
+            if (!requiredKey) {
+                output.value = `Error: ${currentService} API key not set.\nPlease set it via the Tampermonkey menu (top right extension icon).`;
                 return;
             }
 
@@ -569,18 +675,18 @@
     function copyMarkdown() {
         const output = document.getElementById('scraper-output');
         const copyBtn = document.getElementById('copy-btn');
-        
+
         if (!output.value || output.value.startsWith("Processing...") || output.value.startsWith("Error:")) {
             alert("Nothing to copy yet. Please scrape a question first.");
             return;
         }
-        
+
         navigator.clipboard.writeText(output.value).then(() => {
             // Show "Copied" feedback on button
             const originalText = copyBtn.textContent;
             copyBtn.textContent = "Copied!";
             copyBtn.style.backgroundColor = "#28a745";
-            
+
             // Reset button text after 2 seconds
             setTimeout(() => {
                 copyBtn.textContent = originalText;
@@ -605,7 +711,9 @@
     function init() {
         addStyles();
         createPanel();
-        GM_registerMenuCommand('Set sm.ms API Key', setApiKey);
+        GM_registerMenuCommand('Select Image Hosting Service', selectImageHostService);
+        GM_registerMenuCommand('Set sm.ms API Key', setSmmsApiKey);
+        GM_registerMenuCommand('Set Imgbb API Key', setImgbbApiKey);
         GM_registerMenuCommand('Toggle Scrape Quiz Summary', toggleScrapeSummary);
     }
 
