@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UNSW College Timetable Helper
 // @namespace    http://tampermonkey.net/
-// @version      2.7
+// @version      2.8
 // @description  Activity finder + visual 7-day timetable with clash layout and image export. Polished UI spacing, alignment, and styles.
 // @author       Gemini/Claude/Me
 // @match        https://timetables.unswcollege.edu.au/aplus/student*
@@ -32,7 +32,7 @@
     #course-helper-panel{display:none;position:fixed;inset:auto 24px 24px auto;width:980px;max-width:96vw;height:720px;max-height:92vh;
       background:var(--ch-panel);border:1px solid var(--ch-border);border-radius:14px;box-shadow:var(--ch-shadow);
       font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      color:#111827;z-index:9999;display:flex;flex-direction:column;overflow:hidden;resize:both}
+      color:#111827;z-index:9999;flex-direction:column;overflow:hidden;resize:both}
     #course-helper-header{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 16px 0 18px;
       background:#fff;border-bottom:1px solid var(--ch-border);cursor:move}
     #course-helper-header span{font-weight:600}
