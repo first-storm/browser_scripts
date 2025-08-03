@@ -83,6 +83,22 @@ Designed for students using Mobius (UNSW), this script adds a button to capture 
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Screenshot%20%26%20Copy%20Question%20on%20Mobius(UNSW).user.js)
 
+#### UNSW College Timetable Helper
+[`unsw-college-allocateplus.user.js`](violentmonkey/unsw-college-allocateplus.user.js)
+
+A comprehensive timetable management tool for UNSW College students using the AllocatePlus system. Features include:
+
+- **Activity Finder**: Browse and filter course activities with status indicators (Full, Clash, Allocated, Available)
+- **Visual Timetable**: Generate a beautiful 7-day weekly view with clash detection and overlap layout
+- **Smart Clash Detection**: Identifies hard clashes (overlapping non-clashable activities) and potential conflicts
+- **Export Options**: Save timetable as image (PNG), or export data as JSON/CSV
+- **Auto-Update**: Automatic update notifications when new versions are available
+- **Polished UI**: Professional interface with drag-and-drop panel, filtering, and responsive design
+
+The script automatically detects course data changes and updates the display in real-time. Perfect for students who need to visualize their weekly schedule and identify potential timetable conflicts.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/unsw-college-allocateplus.user.js)
+
 ### 🎬 Media Enhancement
 
 #### Netflix Plus
