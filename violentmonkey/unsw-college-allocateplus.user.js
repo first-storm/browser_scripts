@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UNSW College Timetable Helper
 // @namespace    http://tampermonkey.net/
-// @version      2.6
+// @version      2.7
 // @description  Activity finder + visual 7-day timetable with clash layout and image export. Polished UI spacing, alignment, and styles.
 // @author       Gemini/Claude/Me
 // @match        https://timetables.unswcollege.edu.au/aplus/student*
