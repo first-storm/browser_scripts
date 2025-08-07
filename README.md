@@ -76,6 +76,13 @@ Scrapes Moodle quiz questions, uploads images to sm.ms, converts MathJax/HTML to
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/moodle-scraper.user.js)
 
+#### 国家中小学智慧教育平台PDF下载 (SmartEdu PDF Downloader)
+[`smartedu.user.js`](violentmonkey/smartedu.user.js)
+
+Adds a custom download button to the National Smart Education Platform PDF viewer toolbar. Features a comprehensive download button that handles download logic independently, ensuring stable PDF file downloads with progress indicators and error handling. Works specifically with the Chinese National Smart Education Platform's PDF viewing interface.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/smartedu.user.js)
+
 #### Screenshot & Copy Question on Mobius (UNSW)
 [`Screenshot & Copy Question on Mobius(UNSW).user.js`](violentmonkey/Screenshot%20&%20Copy%20Question%20on%20Mobius(UNSW).user.js)
 
