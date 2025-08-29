@@ -22,6 +22,7 @@ Before using these scripts, you need to install a userscript manager extension i
    - Click any of the blue "Install UserScript" badges in this README
    - Your userscript manager will open and prompt you to install the script
    - Click "Install" or "Confirm installation"
+   - To update later, click the same badge again; your manager will show an update diff
 
 3. **Usage**:
    - Navigate to the supported websites (as listed in each script's @match directive)
@@ -121,6 +122,13 @@ Adds a collapsible floating panel to YouTube Music playlist pages that allows yo
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/ytm-export.user.js)
 
 ### 🛠️ Browser Enhancement
+
+#### Mullvad Leta – Quick Google Search
+[`Mullvad Leta - Quick Google Search.user.js`](violentmonkey/Mullvad%20Leta%20-%20Quick%20Google%20Search.user.js)
+
+Adds a small external-link icon to the Google engine option on Mullvad Leta. Clicking the icon opens the current query directly on `google.com` in a new tab. Works on `leta.mullvad.net` and `search.mullvad.net`, integrates with the page dynamically, and supports mouse, middle-click, and keyboard activation.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Mullvad%20Leta%20-%20Quick%20Google%20Search.user.js)
 
 #### Gemini Sidebar Padding Fix for Firefox
 [`GeminiSidebarPaddingFix.user.js`](violentmonkey/GeminiSidebarPaddingFix.user.js)
