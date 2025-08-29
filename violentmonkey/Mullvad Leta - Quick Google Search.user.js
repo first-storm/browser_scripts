@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Mullvad Leta - Quick Google Search
-// @namespace    https://yours.example
+// @namespace    http://tampermonkey.net/
 // @version      1.4
 // @description  Adds an icon to the Google engine button to open your search in a new tab on google.com.
 // @match        https://leta.mullvad.net/*

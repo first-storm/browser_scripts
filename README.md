@@ -123,6 +123,13 @@ Adds a collapsible floating panel to YouTube Music playlist pages that allows yo
 
 ### 🛠️ Browser Enhancement
 
+#### YouTube Share Link – Remove si
+[`YouTube Share Link - Remove si.user.js`](violentmonkey/YouTube%20Share%20Link%20-%20Remove%20si.user.js)
+
+Removes the `si` parameter from YouTube share links and ensures the share dialog’s copy button copies a clean link while preserving other parameters like `t`. Supports `watch`, `shorts`, and `m.youtube.com`.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/YouTube%20Share%20Link%20-%20Remove%20si.user.js)
+
 #### Mullvad Leta – Quick Google Search
 [`Mullvad Leta - Quick Google Search.user.js`](violentmonkey/Mullvad%20Leta%20-%20Quick%20Google%20Search.user.js)
 
