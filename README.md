@@ -144,6 +144,13 @@ Adjusts Gemini's sidebar padding for a symmetrical look in Firefox by balancing 
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/GeminiSidebarPaddingFix.user.js)
 
+#### ChatGPT Sidebar Resizer + Model Title Override
+[`ChatGPT Sidebar Resizer + Model Title Override.user.js`](violentmonkey/ChatGPT%20Sidebar%20Resizer%20+%20Model%20Title%20Override.user.js)
+
+Adds a draggable handle to resize ChatGPT’s sidebar with persisted width and allows overriding the “ChatGPT” model button label via menu and `GM_setValue`, preserving the version number (e.g., “5”). Matches `chatgpt.com/*`.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/ChatGPT%20Sidebar%20Resizer%20+%20Model%20Title%20Override.user.js)
+
 #### Selection and Copying Restorer (Universal)
 [`Selection and Copying Restorer (Universal).user.js`](violentmonkey/Selection%20and%20Copying%20Restorer%20(Universal).user.js)
 
