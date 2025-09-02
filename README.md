@@ -123,6 +123,13 @@ Adds a collapsible floating panel to YouTube Music playlist pages that allows yo
 
 ### 🛠️ Browser Enhancement
 
+#### Gemini Toolkit: Copy Bubble + Logo Renamer + Sidebar Padding Fix
+[`GeminiSidebarPaddingFix.user.js`](violentmonkey/GeminiSidebarPaddingFix.user.js)
+
+Balances Gemini's sidebar padding for Firefox, adds a "Copy" button to chat bubbles, and allows renaming the Gemini logo via menu or keyboard shortcut.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/GeminiSidebarPaddingFix.user.js)
+
 #### YouTube Share Link – Remove si
 [`YouTube Share Link - Remove si.user.js`](violentmonkey/YouTube%20Share%20Link%20-%20Remove%20si.user.js)
 
@@ -136,13 +143,6 @@ Removes the `si` parameter from YouTube share links and ensures the share dialog
 Adds a small external-link icon to the Google engine option on Mullvad Leta. Clicking the icon opens the current query directly on `google.com` in a new tab. Works on `leta.mullvad.net` and `search.mullvad.net`, integrates with the page dynamically, and supports mouse, middle-click, and keyboard activation.
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Mullvad%20Leta%20-%20Quick%20Google%20Search.user.js)
-
-#### Gemini Sidebar Padding Fix for Firefox
-[`GeminiSidebarPaddingFix.user.js`](violentmonkey/GeminiSidebarPaddingFix.user.js)
-
-Adjusts Gemini's sidebar padding for a symmetrical look in Firefox by balancing the space around the chat history list. This script fixes the asymmetry caused by Firefox's scrollbar rendering, ensuring a more visually pleasing interface.
-
-[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/GeminiSidebarPaddingFix.user.js)
 
 #### ChatGPT Sidebar Resizer + Model Title Override
 [`ChatGPT Sidebar Resizer + Model Title Override.user.js`](violentmonkey/ChatGPT%20Sidebar%20Resizer%20+%20Model%20Title%20Override.user.js)
