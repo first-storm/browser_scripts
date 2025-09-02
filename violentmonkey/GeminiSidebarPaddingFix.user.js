@@ -1,11 +1,14 @@
 // ==UserScript==
 // @name         Gemini Toolkit: Copy Bubble + Logo Renamer + Sidebar Padding Fix
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Adjusts Gemini's sidebar padding for a symmetrical look in Firefox by balancing the space around the chat history list.
 // @author       Your AI Assistant
 // @match        https://gemini.google.com/*
 // @grant        GM_addStyle
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_registerMenuCommand
 // @run-at       document-start
 // @updateURL    https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/GeminiSidebarPaddingFix.user.js
 // @downloadURL  https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/GeminiSidebarPaddingFix.user.js
@@ -104,11 +107,22 @@
   }
 
   // Menu commands (if supported)
-  if (typeof GM_registerMenuCommand === "function") {
-    GM_registerMenuCommand("Set Gemini label…", promptAndSaveLabel);
-    GM_registerMenuCommand("Reset label to default", () => {
+  const registerMenu =
+    typeof GM_registerMenuCommand === "function"
+      ? GM_registerMenuCommand
+      : (typeof GM === "object" && typeof GM.registerMenuCommand === "function"
+          ? GM.registerMenuCommand
+          : null);
+
+  if (registerMenu) {
+    registerMenu("Set Gemini label…", promptAndSaveLabel);
+    registerMenu("Reset label to default", () => {
       currentLabel = DEFAULT_LABEL;
-      GM_setValue && GM_setValue(STORAGE_KEY, currentLabel);
+      const setter =
+        typeof GM_setValue === "function"
+          ? GM_setValue
+          : (typeof GM === "object" && typeof GM.setValue === "function" ? GM.setValue : null);
+      if (setter) setter(STORAGE_KEY, currentLabel);
       applyLabel();
     });
   }
