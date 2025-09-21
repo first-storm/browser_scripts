@@ -87,7 +87,7 @@ Adds a custom download button to the National Smart Education Platform PDF viewe
 #### Screenshot & Copy Question on Mobius (UNSW)
 [`Screenshot & Copy Question on Mobius(UNSW).user.js`](violentmonkey/Screenshot%20&%20Copy%20Question%20on%20Mobius(UNSW).user.js)
 
-Designed for students using Mobius (UNSW), this script adds a button to capture and copy a screenshot of the question container. It uses `html2canvas` to render the question area and copies the image to the clipboard, simplifying the process of saving or sharing specific questions.
+Adds a button to capture and copy a screenshot of the question container using `html2canvas`, and makes the question info sidebar sticky for easier reference while scrolling. The screenshot is copied directly to the clipboard for quick saving or sharing.
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/Screenshot%20%26%20Copy%20Question%20on%20Mobius(UNSW).user.js)
 
