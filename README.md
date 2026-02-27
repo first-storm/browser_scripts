@@ -151,6 +151,13 @@ Adds a draggable handle to resize ChatGPT’s sidebar with persisted width and a
 
 [![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/ChatGPT%20Sidebar%20Resizer%20+%20Model%20Title%20Override.user.js)
 
+#### ChatGPT Font Customizer
+[`ChatGPT Font Customizer.user.js`](violentmonkey/ChatGPT%20Font%20Customizer.user.js)
+
+Injects Google Fonts (Noto Sans full CJK series + Fira Code) into ChatGPT and adds a native-style “Fonts” tab inside the Settings panel. Allows customising text size, line height, font weight, code font stack, code size, code line height, and tab width — all persisted via `GM_getValue`/`GM_setValue` and applied instantly via CSS variables.
+
+[![Install](https://img.shields.io/badge/Install-UserScript-blue?style=for-the-badge)](https://cdn.jsdelivr.net/gh/first-storm/browser_scripts@master/violentmonkey/ChatGPT%20Font%20Customizer.user.js)
+
 #### Selection and Copying Restorer (Universal)
 [`Selection and Copying Restorer (Universal).user.js`](violentmonkey/Selection%20and%20Copying%20Restorer%20(Universal).user.js)
 
