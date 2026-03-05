@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Coles Scraper
 // @namespace    http://tampermonkey.net/
-// @version      7.0
+// @version      7.1
 // @description  Coles tool with tabbed UI for scraping products, detailed data fetching (concurrent), visual list display, and multiple export formats (JSON, CSV, Markdown).
 // @author       Artificial Intelligence LOL & Gemini
 // @match        https://www.coles.com.au/*
@@ -59,6 +59,17 @@
         cfg.maxRetries = clamp(cfg.maxRetries, 0, 10);
         cfg.retryDelay = clamp(cfg.retryDelay, 100, 10000);
         cfg.concurrency= clamp(cfg.concurrency,1, 10);
+    }
+
+    const CFG_KEY = 'coles-scraper-cfg';
+    function saveCfg() {
+        try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch {}
+    }
+    function loadCfg() {
+        try {
+            const saved = JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
+            if (saved && typeof saved === 'object') Object.assign(cfg, saved);
+        } catch {}
     }
 
     async function copyText(text) {
@@ -669,7 +680,7 @@
         panel.style.display = 'none';
         panel.innerHTML = `
             <div id="cs-header">
-                <span>Coles Scraper v7.0</span>
+                <span>Coles Scraper v7.1</span>
                 <button id="cs-close">✕</button>
             </div>
             <div id="cs-tabs">
@@ -792,13 +803,14 @@
         panel.querySelector('#sc-list').addEventListener('click', handleItemActions);
         panel.querySelector('#tr-list').addEventListener('click', handleItemActions);
 
-        // Settings — unified handler
+        // Settings — unified handler with persistence
         panel.querySelectorAll('[data-cfg]').forEach(el => {
             el.addEventListener('change', () => {
                 const key = el.dataset.cfg;
                 cfg[key] = el.type === 'checkbox' ? el.checked : parseInt(el.value, 10);
                 validateCfg();
                 if (el.type !== 'checkbox') el.value = cfg[key];
+                saveCfg();
             });
         });
 
@@ -976,6 +988,7 @@
 
     // --- INIT ---
     function init() {
+        loadCfg();
         validateCfg();
         createUI();
         monitorNavigation();
