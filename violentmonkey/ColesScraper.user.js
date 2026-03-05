@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Coles Scraper
 // @namespace    http://tampermonkey.net/
-// @version      7.1
-// @description  Coles tool with tabbed UI for scraping products, detailed data fetching (concurrent), visual list display, and multiple export formats (JSON, CSV, Markdown).
+// @version      7.2
+// @description  Coles tool with tabbed UI for scraping products, detailed data fetching (concurrent queue), visual list display, and multiple export formats (JSON, CSV, Markdown).
 // @author       Artificial Intelligence LOL & Gemini
 // @match        https://www.coles.com.au/*
 // @grant        GM_addStyle
@@ -18,18 +18,18 @@
     // --- SVG ICONS (inline, keyed) ---
     const I = {
         scrapePage: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
-        scrapeAll:  `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
-        fetchDet:   `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>`,
-        trolley:    `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`,
-        stop:       `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>`,
-        copy:       `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
-        clear:      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
-        tool:       `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
-        trash:      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
-        check:      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
-        expand:     `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
-        collapse:   `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`,
-        retry:      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`,
+        scrapeAll: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+        fetchDet: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>`,
+        trolley: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`,
+        stop: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>`,
+        copy: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+        clear: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+        tool: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+        trash: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`,
+        check: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
+        expand: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
+        collapse: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`,
+        retry: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`,
     };
 
     // --- STATE ---
@@ -42,39 +42,42 @@
         minDelay: 800, maxDelay: 1500,
         maxRetries: 3, retryDelay: 2000,
         concurrency: 4,
+        pageConcurrency: 2,
         inclImg: true, inclUrl: true,
+        exportAction: 'copy-json',
     };
 
     // --- DOM CACHE (populated after createUI) ---
     const $ = {};
 
     // --- UTILITIES ---
-    const sleep  = ms => new Promise(r => setTimeout(r, ms));
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
     const sleepR = () => sleep(Math.random() * (cfg.maxDelay - cfg.minDelay) + cfg.minDelay);
 
     const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
     function validateCfg() {
-        cfg.minDelay   = clamp(cfg.minDelay,   100, 10000);
-        cfg.maxDelay   = clamp(cfg.maxDelay,   cfg.minDelay, 10000);
+        cfg.minDelay = clamp(cfg.minDelay, 100, 10000);
+        cfg.maxDelay = clamp(cfg.maxDelay, cfg.minDelay, 10000);
         cfg.maxRetries = clamp(cfg.maxRetries, 0, 10);
         cfg.retryDelay = clamp(cfg.retryDelay, 100, 10000);
-        cfg.concurrency= clamp(cfg.concurrency,1, 10);
+        cfg.concurrency = clamp(cfg.concurrency, 1, 32);
+        cfg.pageConcurrency = clamp(cfg.pageConcurrency, 1, 16);
     }
 
     const CFG_KEY = 'coles-scraper-cfg';
     function saveCfg() {
-        try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch {}
+        try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); } catch { }
     }
     function loadCfg() {
         try {
             const saved = JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
             if (saved && typeof saved === 'object') Object.assign(cfg, saved);
-        } catch {}
+        } catch { }
     }
 
     async function copyText(text) {
         if (typeof GM_setClipboard === 'function') { GM_setClipboard(text, 'text'); return true; }
-        if (navigator.clipboard?.writeText) { try { await navigator.clipboard.writeText(text); return true; } catch {} }
+        if (navigator.clipboard?.writeText) { try { await navigator.clipboard.writeText(text); return true; } catch { } }
         try {
             const ta = Object.assign(document.createElement('textarea'), {
                 value: text, style: 'position:fixed;opacity:0;top:-9999px;left:-9999px'
@@ -104,6 +107,66 @@
         return tryExtract(img.src) || tryExtract((img.getAttribute('srcset') || '').split(' ')[0]) || img.src;
     }
 
+    // --- QUEUE UTILITY ---
+    class TaskQueue {
+        constructor(concurrency, signal) {
+            this._conc = concurrency;
+            this._signal = signal;
+            this._tasks = [];
+            this._running = 0;
+            this._resolve = null;
+            this._reject = null;
+            this._settled = false;
+            this._results = [];
+            this._errors = [];
+        }
+
+        push(fn) {
+            this._tasks.push(fn);
+        }
+
+        run() {
+            return new Promise((resolve, reject) => {
+                this._resolve = resolve;
+                this._reject = reject;
+                this._drain();
+            });
+        }
+
+        _drain() {
+            if (this._settled) return;
+            while (this._running < this._conc && this._tasks.length > 0) {
+                if (this._signal?.aborted) {
+                    this._settle(); return;
+                }
+                const task = this._tasks.shift();
+                this._running++;
+                task().then(
+                    val => { this._results.push(val); this._running--; this._drain(); },
+                    err => {
+                        if (err.name === 'AbortError' || err.message === 'Operation stopped') {
+                            this._tasks.length = 0; // flush remaining
+                            this._errors.push(err);
+                        } else {
+                            this._errors.push(err);
+                        }
+                        this._running--;
+                        this._drain();
+                    }
+                );
+            }
+            if (this._running === 0 && this._tasks.length === 0) {
+                this._settle();
+            }
+        }
+
+        _settle() {
+            if (this._settled) return;
+            this._settled = true;
+            this._resolve({ results: this._results, errors: this._errors });
+        }
+    }
+
     // --- PAGE DETECTION ---
     const detectPage = () => {
         const p = location.pathname;
@@ -119,13 +182,13 @@
             try {
                 const link = tile.querySelector('a.product__link');
                 let product_url = 'N/A';
-                try { product_url = link ? new URL(link.href, location.origin).href : 'N/A'; } catch {}
+                try { product_url = link ? new URL(link.href, location.origin).href : 'N/A'; } catch { }
                 products.push({
-                    name:       tile.querySelector('h2.product__title')?.textContent.trim() || 'N/A',
+                    name: tile.querySelector('h2.product__title')?.textContent.trim() || 'N/A',
                     product_url,
-                    price:      tile.querySelector('span.price__value')?.textContent.trim() || 'N/A',
+                    price: tile.querySelector('span.price__value')?.textContent.trim() || 'N/A',
                     unit_price: tile.querySelector('div.price__calculation_method')?.textContent.trim() || 'N/A',
-                    image_url:  parseImgUrl(tile.querySelector("img[data-testid='product-image']")),
+                    image_url: parseImgUrl(tile.querySelector("img[data-testid='product-image']")),
                 });
             } catch (e) { console.error('Tile parse error:', e); }
         });
@@ -141,12 +204,12 @@
             if (!pi) return { detail_error: 'Product info absent in __NEXT_DATA__.' };
 
             pd.detailed_name = `${pi.name || ''} | ${pi.size || ''}`.replace(/^ \| | \| $/g, '');
-            pd.brand         = pi.brand || 'N/A';
+            pd.brand = pi.brand || 'N/A';
 
             const pr = pi.pricing || {};
-            pd.detailed_current_price  = pr.now  ? `$${pr.now.toFixed(2)}`  : 'N/A';
-            pd.detailed_original_price = pr.was  ? `$${pr.was.toFixed(2)}`  : 'None';
-            pd.savings                 = pr.saveStatement || 'None';
+            pd.detailed_current_price = pr.now ? `$${pr.now.toFixed(2)}` : 'N/A';
+            pd.detailed_original_price = pr.was ? `$${pr.was.toFixed(2)}` : 'None';
+            pd.savings = pr.saveStatement || 'None';
 
             if (pi.longDescription) {
                 const d = document.createElement('div');
@@ -162,7 +225,7 @@
             pd.barcode_gtin = pi.gtin || 'N/A';
 
             const rv = doc.querySelector('div[data-bv-show="rating_summary"][data-bv-ready="true"]');
-            pd.rating       = rv?.querySelector('.bv_avgRating_component_container')?.textContent.trim() + ' / 5' || 'N/A';
+            pd.rating = rv?.querySelector('.bv_avgRating_component_container')?.textContent.trim() + ' / 5' || 'N/A';
             pd.review_count = rv?.querySelector('.bv_numReviews_text')?.textContent.trim().replace(/[()]/g, '') || 'N/A';
 
             const di = doc.querySelector('img[data-testid^="product-image"]');
@@ -178,15 +241,15 @@
         Array.from(ul.children).forEach(li => {
             try {
                 const title = li.querySelector('a[data-testid="product_in_trolley__title"]');
-                const img   = li.querySelector('img[data-testid="product-image"]');
-                const qty   = li.querySelector('select[data-testid="quantity-picker-select"]');
+                const img = li.querySelector('img[data-testid="product-image"]');
+                const qty = li.querySelector('select[data-testid="quantity-picker-select"]');
                 const price = li.querySelector('span[data-testid="product-pricing"]');
                 if (!title || !img || !qty || !price) return;
-                const quantity   = parseInt(qty.value, 10);
-                const itemTotal  = parseFloat(price.textContent.replace('$', ''));
+                const quantity = parseInt(qty.value, 10);
+                const itemTotal = parseFloat(price.textContent.replace('$', ''));
                 if (isNaN(quantity) || isNaN(itemTotal)) return;
                 let product_url = 'N/A';
-                try { product_url = new URL(title.href, location.origin).href; } catch {}
+                try { product_url = new URL(title.href, location.origin).href; } catch { }
                 items.push({
                     name: title.textContent.trim(), image_url: img.src,
                     product_url, quantity, price: `$${itemTotal.toFixed(2)}`, itemTotal,
@@ -228,7 +291,7 @@
         document.querySelectorAll('.button-group button:not(.stop-btn)').forEach(b => b.disabled = on);
         document.querySelectorAll('.product-action-btn').forEach(b => b.disabled = on);
         $.settings.style.pointerEvents = on ? 'none' : 'auto';
-        $.settings.style.opacity       = on ? '0.6' : '1';
+        $.settings.style.opacity = on ? '0.6' : '1';
         document.querySelectorAll('.stop-btn').forEach(b => {
             b.style.display = on ? 'inline-flex' : 'none';
             b.disabled = !on;
@@ -241,11 +304,11 @@
     function renderList(container, products, tab) {
         container.innerHTML = '';
         products.forEach((p, i) => {
-            const name      = p.detailed_name || p.name || 'N/A';
-            const price     = p.detailed_current_price || p.price || 'N/A';
+            const name = p.detailed_name || p.name || 'N/A';
+            const price = p.detailed_current_price || p.price || 'N/A';
             const unitPrice = p.unit_price || '';
-            const img       = p.image_url || DEFAULT_IMG;
-            const extra     = tab === 'trolley' ? `<p class="product-quantity">Qty: <strong>${p.quantity}</strong></p>` : '';
+            const img = p.image_url || DEFAULT_IMG;
+            const extra = tab === 'trolley' ? `<p class="product-quantity">Qty: <strong>${p.quantity}</strong></p>` : '';
             const wrap = document.createElement('div');
             wrap.className = 'product-item-wrapper';
             wrap.innerHTML = `
@@ -268,7 +331,7 @@
     }
 
     function renderExpanded(container, p) {
-        const SKIP = new Set(['name','price','unit_price','image_url','product_url','itemTotal','quantity']);
+        const SKIP = new Set(['name', 'price', 'unit_price', 'image_url', 'product_url', 'itemTotal', 'quantity']);
         let html = '<dl class="details-dl">';
         let any = false;
         for (const k in p) {
@@ -285,8 +348,8 @@
 
     function refreshDisplay(tab) {
         const products = DATA[tab];
-        const list     = $[`${tab}List`];
-        const status   = $[`${tab}Status`];
+        const list = $[`${tab}List`];
+        const status = $[`${tab}Status`];
         if (!list) return;
 
         if (products.length) {
@@ -318,12 +381,12 @@
                <button id="sc-det-btn" disabled>${I.fetchDet} Fetch Details</button>
                <button class="stop-btn" style="display:none">${I.stop} Stop</button>`
             : pt === 'detail'
-            ? `<button id="sc-detail-btn">${I.scrapePage} Scrape Product</button>`
-            : `<div class="info-message">Navigate to a Coles product or search page.</div>`;
+                ? `<button id="sc-detail-btn">${I.scrapePage} Scrape Product</button>`
+                : `<div class="info-message">Navigate to a Coles product or search page.</div>`;
 
         c.querySelector('#sc-page-btn')?.addEventListener('click', doScrapePage);
-        c.querySelector('#sc-all-btn')?.addEventListener('click',  doScrapeAll);
-        c.querySelector('#sc-det-btn')?.addEventListener('click',  () => doFetchDetails('scraper'));
+        c.querySelector('#sc-all-btn')?.addEventListener('click', doScrapeAll);
+        c.querySelector('#sc-det-btn')?.addEventListener('click', () => doFetchDetails('scraper'));
         c.querySelector('#sc-detail-btn')?.addEventListener('click', doScrapeDetailPage);
         c.querySelector('.stop-btn')?.addEventListener('click', doStop);
         $['scraperFetchBtn'] = c.querySelector('#sc-det-btn');
@@ -336,8 +399,8 @@
             <button id="tr-det-btn" disabled>${I.fetchDet} Fetch Details</button>
             <button class="stop-btn" style="display:none">${I.stop} Stop</button>`;
         c.querySelector('#tr-scrape-btn').addEventListener('click', doScrapeTrolley);
-        c.querySelector('#tr-det-btn').addEventListener('click',  () => doFetchDetails('trolley'));
-        c.querySelector('.stop-btn').addEventListener('click',    doStop);
+        c.querySelector('#tr-det-btn').addEventListener('click', () => doFetchDetails('trolley'));
+        c.querySelector('.stop-btn').addEventListener('click', doStop);
         $['trolleyFetchBtn'] = c.querySelector('#tr-det-btn');
     }
 
@@ -347,14 +410,14 @@
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === `${tab}-tab`));
         if (tab === 'scraper') { buildScraperButtons(); refreshDisplay('scraper'); }
-        else                   { buildTrolleyButtons(); refreshDisplay('trolley'); }
+        else { buildTrolleyButtons(); refreshDisplay('trolley'); }
     }
 
     // --- OPERATIONS ---
     function doStop() {
         isRunning = false;
         abortCtrl?.abort(); abortCtrl = null;
-        ['scraper','trolley'].forEach(t => setStatus(t, 'Stopped.'));
+        ['scraper', 'trolley'].forEach(t => setStatus(t, 'Stopped.'));
         document.querySelectorAll('.stop-btn').forEach(b => b.disabled = true);
     }
 
@@ -377,6 +440,7 @@
         isRunning = true; abortCtrl = new AbortController();
         DATA.scraper = [];
         toggleControls(true);
+        validateCfg();
 
         const pag = document.querySelector("div[data-testid='pagination-info']");
         let totalPages = 1;
@@ -384,35 +448,67 @@
             const of = pag.textContent.match(/of ([\d,]+)/);
             const rg = pag.textContent.match(/(\d+)\s*-\s*(\d+)/);
             if (of && rg) {
-                const total = parseInt(of[1].replace(/,/g,''), 10);
-                const perPg = parseInt(rg[2],10) - parseInt(rg[1],10) + 1;
+                const total = parseInt(of[1].replace(/,/g, ''), 10);
+                const perPg = parseInt(rg[2], 10) - parseInt(rg[1], 10) + 1;
                 if (perPg > 0) totalPages = Math.ceil(total / perPg);
             }
         }
 
         setStatus('scraper', `Found ${totalPages} pages. Starting…`);
         setProgress('scraper', 0, totalPages, true);
+
+        // Scrape current page (page 1) directly
         DATA.scraper.push(...scrapeList());
-        setProgress('scraper', 1, totalPages, true);
+        let completed = 1;
+        setProgress('scraper', completed, totalPages, true);
         refreshDisplay('scraper');
 
-        const base = new URL(location.href);
-        for (let i = 2; i <= totalPages && isRunning; i++) {
-            setStatus('scraper', `Fetching page ${i}/${totalPages}…`);
-            base.searchParams.set('page', i);
-            try {
-                const doc  = await fetchWithRetry(base.href, abortCtrl.signal);
-                const rows = scrapeList(doc);
-                if (!rows.length) { setStatus('scraper', `No products on page ${i}. Stopping.`); break; }
-                DATA.scraper.push(...rows);
-                setProgress('scraper', i, totalPages, true);
-                refreshDisplay('scraper');
-                if (i < totalPages) await sleepR();
-            } catch (e) {
-                if (!e.message?.includes('stopped') && e.name !== 'AbortError')
-                    setStatus('scraper', `Error on page ${i}: ${e.message}`);
-                break;
+        if (totalPages > 1) {
+            const base = new URL(location.href);
+            const sig = abortCtrl.signal;
+            const conc = Math.min(cfg.pageConcurrency, totalPages - 1);
+
+            // Slot for ordered results: pageResults[0] = page 2, pageResults[1] = page 3, ...
+            const pageResults = new Array(totalPages - 1).fill(null);
+            let earlyStop = false;
+
+            const queue = new TaskQueue(conc, sig);
+
+            for (let pageNum = 2; pageNum <= totalPages; pageNum++) {
+                const pn = pageNum; // closure capture
+                queue.push(async () => {
+                    if (!isRunning || sig.aborted || earlyStop) throw new Error('Operation stopped');
+                    await sleepR();
+                    if (!isRunning || sig.aborted || earlyStop) throw new Error('Operation stopped');
+
+                    const url = new URL(base.href);
+                    url.searchParams.set('page', pn);
+
+                    const doc = await fetchWithRetry(url.href, sig);
+                    const rows = scrapeList(doc);
+
+                    if (!rows.length) {
+                        earlyStop = true;
+                        setStatus('scraper', `No products on page ${pn}. Stopping.`);
+                        return;
+                    }
+
+                    pageResults[pn - 2] = rows;
+                    completed++;
+                    setProgress('scraper', completed, totalPages, true);
+                    setStatus('scraper', `Fetched page ${pn}/${totalPages} (${completed}/${totalPages} done)…`);
+
+                    // Merge all available ordered results so far
+                    const merged = [];
+                    for (const r of pageResults) {
+                        if (r) merged.push(...r);
+                    }
+                    DATA.scraper = [...scrapeList(), ...merged]; // page 1 + ordered rest
+                    refreshDisplay('scraper');
+                });
             }
+
+            await queue.run();
         }
 
         setStatus('scraper', isRunning ? `Done. ${DATA.scraper.length} products.` : 'Stopped.');
@@ -426,7 +522,7 @@
         if (isRunning) return;
         setStatus('trolley', 'Opening trolley…');
         const drawer = document.querySelector('div[data-testid="trolley-drawer"]');
-        const open   = drawer && drawer.getBoundingClientRect().width > 0 && getComputedStyle(drawer).visibility !== 'hidden';
+        const open = drawer && drawer.getBoundingClientRect().width > 0 && getComputedStyle(drawer).visibility !== 'hidden';
         if (!open) {
             const btn = document.querySelector('button[data-testid="header-trolley-tablet-up"], button[data-testid="header-trolley"]');
             if (!btn) { setStatus('trolley', 'Trolley button not found.'); return; }
@@ -448,9 +544,9 @@
         toggleControls(true);
         validateCfg();
 
-        const total  = products.length;
-        const conc   = Math.min(cfg.concurrency, total);
-        let completed = 0, nextIdx = 0;
+        const total = products.length;
+        const conc = Math.min(cfg.concurrency, total);
+        let completed = 0;
         setStatus(tab, `Fetching details for ${total} products (concurrency: ${conc})…`);
         setProgress(tab, 0, total, true);
 
@@ -462,32 +558,36 @@
         };
 
         const sig = abortCtrl.signal;
-        const worker = async wid => {
-            while (true) {
-                if (!isRunning || sig.aborted) throw new Error('stopped');
-                const i = nextIdx++;
-                if (i >= total) break;
-                const p = products[i];
-                setStatus(tab, `(${completed}/${total}) [W${wid+1}] ${(p.name||p.detailed_name||'').slice(0,40)}…`);
+        const queue = new TaskQueue(conc, sig);
+
+        for (let i = 0; i < total; i++) {
+            const idx = i;
+            queue.push(async () => {
+                if (!isRunning || sig.aborted) throw new Error('Operation stopped');
+
+                const p = products[idx];
+                setStatus(tab, `(${completed}/${total}) ${(p.name || p.detailed_name || '').slice(0, 40)}…`);
+
                 if (!p.product_url || p.product_url === 'N/A') {
                     p.detail_error = 'No URL.';
                 } else {
                     try {
                         await sleepR();
+                        if (!isRunning || sig.aborted) throw new Error('Operation stopped');
                         Object.assign(p, scrapeDetail(await fetchWithRetry(p.product_url, sig)));
                     } catch (e) {
-                        if (e.message === 'stopped' || e.name === 'AbortError') throw e;
+                        if (e.message === 'Operation stopped' || e.name === 'AbortError') throw e;
                         p.detail_error = `Fetch failed: ${e.message}`;
                     }
                 }
                 completed++;
                 setProgress(tab, completed, total, true);
                 scheduleUI();
-            }
-        };
+            });
+        }
 
-        const results = await Promise.allSettled(Array.from({ length: conc }, (_, w) => worker(w)));
-        const stopped = results.some(r => r.status === 'rejected');
+        const { errors } = await queue.run();
+        const stopped = errors.some(e => e.message === 'Operation stopped' || e.name === 'AbortError');
         setStatus(tab, stopped ? 'Stopped.' : 'All details fetched.');
         isRunning = false; abortCtrl = null;
         toggleControls(false);
@@ -498,18 +598,18 @@
     // --- PRODUCT ITEM ACTIONS ---
     async function handleItemActions(e) {
         if (isRunning) return;
-        const del    = e.target.closest('.product-delete-btn');
-        const copy   = e.target.closest('.product-copy-btn');
+        const del = e.target.closest('.product-delete-btn');
+        const copy = e.target.closest('.product-copy-btn');
         const expand = e.target.closest('.product-expand-btn');
-        const retry  = e.target.closest('.product-retry-btn');
+        const retry = e.target.closest('.product-retry-btn');
         if (!del && !copy && !expand && !retry) return;
 
-        const wrap  = e.target.closest('.product-item-wrapper');
-        const item  = wrap?.querySelector('.product-item');
+        const wrap = e.target.closest('.product-item-wrapper');
+        const item = wrap?.querySelector('.product-item');
         if (!item) return;
 
-        const idx  = parseInt(item.dataset.i, 10);
-        const tab  = item.dataset.tab;
+        const idx = parseInt(item.dataset.i, 10);
+        const tab = item.dataset.tab;
         const list = DATA[tab];
         if (idx < 0 || idx >= list.length) return;
         const p = list[idx];
@@ -524,7 +624,7 @@
                 setTimeout(() => { copy.classList.remove('copied'); copy.innerHTML = I.copy; }, 1500);
             }
         } else {
-            const dc  = wrap.querySelector('.product-details-expanded');
+            const dc = wrap.querySelector('.product-details-expanded');
             const btn = item.querySelector('.product-expand-btn');
             if (expand) {
                 if (dc.style.display !== 'none') {
@@ -580,7 +680,7 @@
     function toCSV(data) {
         const { items, totalPriceFormatted } = data;
         const hdrs = [...new Set(items.flatMap(Object.keys))];
-        const esc  = v => { const s = String(v ?? '').replace(/"/g, '""'); return /[,\n"]/.test(s) ? `"${s}"` : s; };
+        const esc = v => { const s = String(v ?? '').replace(/"/g, '""'); return /[,\n"]/.test(s) ? `"${s}"` : s; };
         let csv = totalPriceFormatted ? `Total Price,"${totalPriceFormatted}"\n\n` : '';
         csv += hdrs.join(',') + '\n';
         items.forEach(p => { csv += hdrs.map(h => esc(p[h] ?? '')).join(',') + '\n'; });
@@ -591,17 +691,17 @@
         const src = DATA[activeTab];
         if (!src.length) return null;
         const KM = {
-            detailed_name:'Full Name', brand:'Brand', description:'Description',
-            detailed_current_price:'Current Price', price:'Price', detailed_original_price:'Original Price',
-            savings:'Savings', unit_price:'Unit Price', quantity:'Quantity', itemTotal:'Subtotal',
-            rating:'Rating', review_count:'Review Count', barcode_gtin:'Barcode (GTIN)',
-            product_url:'Product URL', detail_error:'Error',
+            detailed_name: 'Full Name', brand: 'Brand', description: 'Description',
+            detailed_current_price: 'Current Price', price: 'Price', detailed_original_price: 'Original Price',
+            savings: 'Savings', unit_price: 'Unit Price', quantity: 'Quantity', itemTotal: 'Subtotal',
+            rating: 'Rating', review_count: 'Review Count', barcode_gtin: 'Barcode (GTIN)',
+            product_url: 'Product URL', detail_error: 'Error',
         };
         const ORDER = [
-            'detailed_name','brand','description','detailed_current_price','price',
-            'detailed_original_price','savings','unit_price','quantity','itemTotal','rating',
-            'review_count','barcode_gtin','ingredients','allergens','claims',
-            'country_of_origin','storage_instructions','product_url','detail_error',
+            'detailed_name', 'brand', 'description', 'detailed_current_price', 'price',
+            'detailed_original_price', 'savings', 'unit_price', 'quantity', 'itemTotal', 'rating',
+            'review_count', 'barcode_gtin', 'ingredients', 'allergens', 'claims',
+            'country_of_origin', 'storage_instructions', 'product_url', 'detail_error',
         ];
         let md = `# ${activeTab === 'trolley' ? 'Trolley' : 'Product List'}\n\n`;
         src.forEach(p => {
@@ -612,14 +712,14 @@
             md += '\n';
             ORDER.forEach(k => {
                 if (!p[k] || p[k] === 'N/A' || p[k] === 'None' || !String(p[k]).trim()) return;
-                const lbl = KM[k] || k.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-                const val = k === 'itemTotal' ? `$${Number(p[k]).toFixed(2)}` : String(p[k]).replace(/\n/g,' ').slice(0,200);
+                const lbl = KM[k] || k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                const val = k === 'itemTotal' ? `$${Number(p[k]).toFixed(2)}` : String(p[k]).replace(/\n/g, ' ').slice(0, 200);
                 md += `- **${lbl}**: ${val}\n`;
             });
             md += '\n';
         });
         if (activeTab === 'trolley' && src.length) {
-            const t = src.reduce((a,p) => a + (p.itemTotal||0), 0);
+            const t = src.reduce((a, p) => a + (p.itemTotal || 0), 0);
             md += `---\n\n**Total: $${t.toFixed(2)}**\n`;
         }
         return md;
@@ -635,17 +735,40 @@
 
     const datestamp = () => new Date().toISOString().slice(0, 10);
 
+    // Map export action to display label
+    const EXPORT_LABELS = {
+        'copy-json': `${I.copy} Copy JSON`,
+        'download-json': `${I.scrapeAll} Download JSON`,
+        'copy-csv': `${I.copy} Copy CSV`,
+        'download-csv': `${I.scrapeAll} Download CSV`,
+        'copy-md': `${I.copy} Copy Markdown`,
+        'download-md': `${I.scrapeAll} Download Markdown`,
+    };
+
+    function applyExportAction(action) {
+        if (!EXPORT_LABELS[action]) action = 'copy-json';
+        cfg.exportAction = action;
+        if ($.exportMain) {
+            $.exportMain.dataset.action = action;
+            $.exportMain.innerHTML = EXPORT_LABELS[action];
+        }
+        saveCfg();
+    }
+
     async function runExport(action) {
         const data = prepareExport();
         if (!data.items?.length) { alert('No data to export.'); return; }
 
-        const dl   = action.startsWith('download-');
-        const fmt  = action.replace(/^(copy|download)-/, '');
+        // Persist selected action
+        applyExportAction(action);
+
+        const dl = action.startsWith('download-');
+        const fmt = action.replace(/^(copy|download)-/, '');
 
         let content, mime, ext;
-        if (fmt === 'json')   { content = JSON.stringify(data, null, 2); mime = 'application/json'; ext = 'json'; }
+        if (fmt === 'json') { content = JSON.stringify(data, null, 2); mime = 'application/json'; ext = 'json'; }
         else if (fmt === 'csv') { content = toCSV(data); mime = 'text/csv;charset=utf-8;'; ext = 'csv'; }
-        else                  { content = toMarkdown(); mime = 'text/markdown;charset=utf-8;'; ext = 'md'; }
+        else { content = toMarkdown(); mime = 'text/markdown;charset=utf-8;'; ext = 'md'; }
         if (!content) { alert('No data.'); return; }
 
         if (dl) {
@@ -654,7 +777,8 @@
             const ok = await copyText(content);
             if (ok) {
                 const btn = $.exportMain;
-                const orig = btn.innerHTML;
+                const origAction = btn.dataset.action;
+                const orig = EXPORT_LABELS[origAction] || btn.innerHTML;
                 btn.innerHTML = `${I.check} Copied`;
                 btn.classList.add('copied-success'); btn.disabled = true;
                 $.exportToggle.disabled = true;
@@ -680,7 +804,7 @@
         panel.style.display = 'none';
         panel.innerHTML = `
             <div id="cs-header">
-                <span>Coles Scraper v7.1</span>
+                <span>Coles Scraper v7.2</span>
                 <button id="cs-close">✕</button>
             </div>
             <div id="cs-tabs">
@@ -731,8 +855,10 @@
                         <input type="number" data-cfg="maxRetries" value="${cfg.maxRetries}" min="0"   max="10">
                         <label title="Delay between retries">Retry Wait (ms)</label>
                         <input type="number" data-cfg="retryDelay" value="${cfg.retryDelay}" min="100" max="10000">
-                        <label title="Parallel fetch count">Concurrent Fetches</label>
-                        <input type="number" data-cfg="concurrency" value="${cfg.concurrency}" min="1" max="10">
+                        <label title="Concurrent detail fetches">Detail Concurrency</label>
+                        <input type="number" data-cfg="concurrency" value="${cfg.concurrency}" min="1" max="32">
+                        <label title="Concurrent page fetches for Scrape All">Page Concurrency</label>
+                        <input type="number" data-cfg="pageConcurrency" value="${cfg.pageConcurrency}" min="1" max="16">
                     </div>
                     <div class="settings-grid">
                         <label>Include Image URL</label>
@@ -747,20 +873,23 @@
         // Cache DOM refs
         Object.assign($, {
             toggle, panel,
-            scraperBtns:   panel.querySelector('#sc-btns'),
-            trolleyBtns:   panel.querySelector('#tr-btns'),
+            scraperBtns: panel.querySelector('#sc-btns'),
+            trolleyBtns: panel.querySelector('#tr-btns'),
             scraperStatus: panel.querySelector('#sc-status'),
             trolleyStatus: panel.querySelector('#tr-status'),
             scraperProgress: panel.querySelector('#sc-progress'),
             trolleyProgress: panel.querySelector('#tr-progress'),
-            scraperList:   panel.querySelector('#sc-list'),
-            trolleyList:   panel.querySelector('#tr-list'),
-            trolleyTotal:  panel.querySelector('#tr-total'),
-            exportMain:    panel.querySelector('#exp-main'),
-            exportToggle:  panel.querySelector('#exp-toggle'),
-            exportMenu:    panel.querySelector('#exp-menu'),
-            settings:      panel.querySelector('#cs-settings'),
+            scraperList: panel.querySelector('#sc-list'),
+            trolleyList: panel.querySelector('#tr-list'),
+            trolleyTotal: panel.querySelector('#tr-total'),
+            exportMain: panel.querySelector('#exp-main'),
+            exportToggle: panel.querySelector('#exp-toggle'),
+            exportMenu: panel.querySelector('#exp-menu'),
+            settings: panel.querySelector('#cs-settings'),
         });
+
+        // Restore persisted export action
+        applyExportAction(cfg.exportAction);
 
         // Panels toggle
         let visible = false;
@@ -781,10 +910,10 @@
             $.exportMenu.style.display = $.exportMenu.style.display === 'none' ? 'block' : 'none';
         });
         panel.querySelectorAll('.exp-opt').forEach(o => o.addEventListener('click', () => {
-            $.exportMain.innerHTML    = o.innerHTML;
-            $.exportMain.dataset.action = o.dataset.action;
+            const action = o.dataset.action;
+            applyExportAction(action);
             $.exportMenu.style.display = 'none';
-            runExport(o.dataset.action);
+            runExport(action);
         }));
         document.addEventListener('click', e => {
             if (!panel.querySelector('.export-wrap')?.contains(e.target))
@@ -825,8 +954,8 @@
             ox = e.clientX - el.offsetLeft;
             oy = e.clientY - el.offsetTop;
             const move = e => {
-                el.style.left = clamp(e.clientX - ox, 0, innerWidth  - el.offsetWidth)  + 'px';
-                el.style.top  = clamp(e.clientY - oy, 0, innerHeight - el.offsetHeight) + 'px';
+                el.style.left = clamp(e.clientX - ox, 0, innerWidth - el.offsetWidth) + 'px';
+                el.style.top = clamp(e.clientY - oy, 0, innerHeight - el.offsetHeight) + 'px';
             };
             const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
             document.addEventListener('mousemove', move);
