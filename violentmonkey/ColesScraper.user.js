@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Coles Scraper
 // @namespace    http://tampermonkey.net/
-// @version      7.2
-// @description  Coles tool with tabbed UI for scraping products, detailed data fetching (concurrent queue), visual list display, and multiple export formats (JSON, CSV, Markdown).
+// @version      7.4.1
+// @description  Coles tool with tabbed UI for scraping products. V7.4.1: Fixed image regex matching and row disabled state during concurrent fetching.
 // @author       Artificial Intelligence LOL & Gemini
 // @match        https://www.coles.com.au/*
 // @grant        GM_addStyle
@@ -33,13 +33,13 @@
     };
 
     // --- STATE ---
-    const DATA = { scraper: [], trolley: [] }; // unified product stores
+    const DATA = { scraper: [], trolley: [] };
     let activeTab = 'scraper';
     let isRunning = false;
     let abortCtrl = null;
 
     const cfg = {
-        minDelay: 800, maxDelay: 1500,
+        minDelay: 200, maxDelay: 500,
         maxRetries: 3, retryDelay: 2000,
         concurrency: 4,
         pageConcurrency: 2,
@@ -107,6 +107,13 @@
         return tryExtract(img.src) || tryExtract((img.getAttribute('srcset') || '').split(' ')[0]) || img.src;
     }
 
+    function extractTextFromHtml(htmlStr) {
+        if (!htmlStr) return 'N/A';
+        const d = document.createElement('div');
+        d.innerHTML = htmlStr;
+        return d.textContent.trim() || 'N/A';
+    }
+
     // --- QUEUE UTILITY ---
     class TaskQueue {
         constructor(concurrency, signal) {
@@ -115,7 +122,6 @@
             this._tasks = [];
             this._running = 0;
             this._resolve = null;
-            this._reject = null;
             this._settled = false;
             this._results = [];
             this._errors = [];
@@ -126,9 +132,8 @@
         }
 
         run() {
-            return new Promise((resolve, reject) => {
+            return new Promise(resolve => {
                 this._resolve = resolve;
-                this._reject = reject;
                 this._drain();
             });
         }
@@ -137,18 +142,17 @@
             if (this._settled) return;
             while (this._running < this._conc && this._tasks.length > 0) {
                 if (this._signal?.aborted) {
-                    this._settle(); return;
+                    this._settle();
+                    return;
                 }
                 const task = this._tasks.shift();
                 this._running++;
                 task().then(
                     val => { this._results.push(val); this._running--; this._drain(); },
                     err => {
+                        this._errors.push(err);
                         if (err.name === 'AbortError' || err.message === 'Operation stopped') {
-                            this._tasks.length = 0; // flush remaining
-                            this._errors.push(err);
-                        } else {
-                            this._errors.push(err);
+                            this._tasks.length = 0;
                         }
                         this._running--;
                         this._drain();
@@ -182,7 +186,7 @@
             try {
                 const link = tile.querySelector('a.product__link');
                 let product_url = 'N/A';
-                try { product_url = link ? new URL(link.href, location.origin).href : 'N/A'; } catch { }
+                try { product_url = link ? new URL(link.getAttribute('href'), location.origin).href : 'N/A'; } catch { }
                 products.push({
                     name: tile.querySelector('h2.product__title')?.textContent.trim() || 'N/A',
                     product_url,
@@ -195,12 +199,13 @@
         return products;
     }
 
-    function scrapeDetail(doc = document) {
+    function scrapeDetail(htmlText) {
         const pd = {};
-        const script = doc.getElementById('__NEXT_DATA__');
-        if (!script?.textContent) return { detail_error: '__NEXT_DATA__ not found.' };
         try {
-            const pi = JSON.parse(script.textContent)?.props?.pageProps?.product;
+            const match = htmlText.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+            if (!match) return { detail_error: '__NEXT_DATA__ not found in source.' };
+
+            const pi = JSON.parse(match[1])?.props?.pageProps?.product;
             if (!pi) return { detail_error: 'Product info absent in __NEXT_DATA__.' };
 
             pd.detailed_name = `${pi.name || ''} | ${pi.size || ''}`.replace(/^ \| | \| $/g, '');
@@ -211,26 +216,28 @@
             pd.detailed_original_price = pr.was ? `$${pr.was.toFixed(2)}` : 'None';
             pd.savings = pr.saveStatement || 'None';
 
-            if (pi.longDescription) {
-                const d = document.createElement('div');
-                d.innerHTML = pi.longDescription;
-                pd.description = d.textContent || 'N/A';
-            } else pd.description = 'N/A';
+            pd.description = extractTextFromHtml(pi.longDescription);
 
             (pi.additionalInfo || []).forEach(({ title, description }) => {
                 if (title && description)
-                    pd[title.toLowerCase().replace(/\s+/g, '_')] = description;
+                    pd[title.toLowerCase().replace(/\s+/g, '_')] = extractTextFromHtml(description);
             });
 
             pd.barcode_gtin = pi.gtin || 'N/A';
 
-            const rv = doc.querySelector('div[data-bv-show="rating_summary"][data-bv-ready="true"]');
-            pd.rating = rv?.querySelector('.bv_avgRating_component_container')?.textContent.trim() + ' / 5' || 'N/A';
-            pd.review_count = rv?.querySelector('.bv_numReviews_text')?.textContent.trim().replace(/[()]/g, '') || 'N/A';
+            const ratingMatch = htmlText.match(/bv_avgRating_component_container[^>]*>([\d.]+)/);
+            const reviewMatch = htmlText.match(/bv_numReviews_text[^>]*>\(([\d,]+)\)/);
+            pd.rating = ratingMatch ? ratingMatch[1].trim() + ' / 5' : 'N/A';
+            pd.review_count = reviewMatch ? reviewMatch[1].trim() : 'N/A';
 
-            const di = doc.querySelector('img[data-testid^="product-image"]');
-            if (di) pd.image_url = parseImgUrl(di);
-        } catch (e) { pd.detail_error = `JSON parse error: ${e.message}`; }
+            // Fixed Image Regex: safely isolate the <img> tag that contains product-image and feed it to parseImgUrl
+            const imgMatch = htmlText.match(/<img[^>]*data-testid="product-image[^"]*"[^>]*>/i);
+            if (imgMatch) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = imgMatch[0];
+                pd.image_url = parseImgUrl(tempDiv.firstChild);
+            }
+        } catch (e) { pd.detail_error = `Data extraction error: ${e.message}`; }
         return pd;
     }
 
@@ -259,8 +266,7 @@
         return items.length ? { products: items } : { error: 'No valid trolley products.' };
     }
 
-    // --- NETWORK ---
-    async function fetchWithRetry(url, signal, checkRunning = true) {
+    async function fetchWithRetryText(url, signal, checkRunning = true) {
         validateCfg();
         let lastErr;
         for (let i = 0; i <= cfg.maxRetries; i++) {
@@ -268,7 +274,7 @@
             try {
                 const res = await fetch(url, signal ? { signal } : {});
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return new DOMParser().parseFromString(await res.text(), 'text/html');
+                return await res.text();
             } catch (e) {
                 if (e.name === 'AbortError' || e.message === 'Operation stopped') throw e;
                 lastErr = e;
@@ -301,33 +307,41 @@
     // --- RENDER ---
     const DEFAULT_IMG = 'https://www.coles.com.au/_next/static/images/default_product_image-cf915244318b7c77271b489369949419.png';
 
+    function createProductItemWrapper(p, i, tab) {
+        const name = p.detailed_name || p.name || 'N/A';
+        const price = p.detailed_current_price || p.price || 'N/A';
+        const unitPrice = p.unit_price || '';
+        const img = p.image_url || DEFAULT_IMG;
+        const extra = tab === 'trolley' ? `<p class="product-quantity">Qty: <strong>${p.quantity}</strong></p>` : '';
+        const wrap = document.createElement('div');
+        wrap.className = 'product-item-wrapper';
+
+        // Fix: maintain disabled state for buttons if operation is currently running
+        const d = isRunning ? 'disabled' : '';
+
+        wrap.innerHTML = `
+            <div class="product-item" data-i="${i}" data-tab="${tab}">
+                <img src="${img}" class="product-item-img" alt="" loading="lazy" onerror="this.src='${DEFAULT_IMG}'">
+                <div class="product-item-details">
+                    <p class="product-name" title="${name}">${name}</p>
+                    <p class="product-price">${price} <span class="product-unit-price">${unitPrice}</span></p>
+                    ${extra}
+                </div>
+                <div class="product-item-actions">
+                    <button class="product-action-btn product-expand-btn" title="Expand" ${d}>${I.expand}</button>
+                    <button class="product-action-btn product-copy-btn" title="Copy JSON" ${d}>${I.copy}</button>
+                    <button class="product-action-btn product-delete-btn" title="Delete" ${d}>${I.trash}</button>
+                </div>
+            </div>
+            <div class="product-details-expanded" style="display:none"></div>`;
+        return wrap;
+    }
+
     function renderList(container, products, tab) {
         container.innerHTML = '';
-        products.forEach((p, i) => {
-            const name = p.detailed_name || p.name || 'N/A';
-            const price = p.detailed_current_price || p.price || 'N/A';
-            const unitPrice = p.unit_price || '';
-            const img = p.image_url || DEFAULT_IMG;
-            const extra = tab === 'trolley' ? `<p class="product-quantity">Qty: <strong>${p.quantity}</strong></p>` : '';
-            const wrap = document.createElement('div');
-            wrap.className = 'product-item-wrapper';
-            wrap.innerHTML = `
-                <div class="product-item" data-i="${i}" data-tab="${tab}">
-                    <img src="${img}" class="product-item-img" alt="" loading="lazy" onerror="this.src='${DEFAULT_IMG}'">
-                    <div class="product-item-details">
-                        <p class="product-name" title="${name}">${name}</p>
-                        <p class="product-price">${price} <span class="product-unit-price">${unitPrice}</span></p>
-                        ${extra}
-                    </div>
-                    <div class="product-item-actions">
-                        <button class="product-action-btn product-expand-btn" title="Expand">${I.expand}</button>
-                        <button class="product-action-btn product-copy-btn"   title="Copy JSON">${I.copy}</button>
-                        <button class="product-action-btn product-delete-btn" title="Delete">${I.trash}</button>
-                    </div>
-                </div>
-                <div class="product-details-expanded" style="display:none"></div>`;
-            container.appendChild(wrap);
-        });
+        const frag = document.createDocumentFragment();
+        products.forEach((p, i) => frag.appendChild(createProductItemWrapper(p, i, tab)));
+        container.appendChild(frag);
     }
 
     function renderExpanded(container, p) {
@@ -344,6 +358,28 @@
         }
         if (!any) html += '<dd style="grid-column:1/-1">No additional details.</dd>';
         container.innerHTML = html + '</dl>';
+    }
+
+    function updateProductRow(tab, idx, options = {}) {
+        const list = $[`${tab}List`];
+        if (!list) return false;
+        const oldItem = list.querySelector(`.product-item[data-i="${idx}"][data-tab="${tab}"]`);
+        if (!oldItem) return false;
+
+        const oldWrap = oldItem.closest('.product-item-wrapper');
+        const oldExpanded = oldWrap?.querySelector('.product-details-expanded');
+        const shouldExpand = options.forceExpand || (options.preserveExpanded && oldExpanded && oldExpanded.style.display !== 'none');
+
+        const newWrap = createProductItemWrapper(DATA[tab][idx], idx, tab);
+        if (shouldExpand) {
+            const newExpanded = newWrap.querySelector('.product-details-expanded');
+            renderExpanded(newExpanded, DATA[tab][idx]);
+            newExpanded.style.display = 'block';
+            newWrap.querySelector('.product-expand-btn').innerHTML = I.collapse;
+        }
+
+        oldWrap.replaceWith(newWrap);
+        return true;
     }
 
     function refreshDisplay(tab) {
@@ -366,7 +402,6 @@
             if (products.length) $.trolleyTotal.innerHTML = `<span>Trolley Total:</span><span class="total-price-value">$${total.toFixed(2)}</span>`;
         }
 
-        // Enable/disable fetch-details button
         const detBtn = $[`${tab}FetchBtn`];
         if (detBtn && !isRunning) detBtn.disabled = products.length === 0;
     }
@@ -430,7 +465,7 @@
 
     async function doScrapeDetailPage() {
         if (isRunning) return;
-        DATA.scraper = [scrapeDetail()];
+        DATA.scraper = [scrapeDetail(document.documentElement.outerHTML)];
         refreshDisplay('scraper');
         setStatus('scraper', 'Scraped product details.');
     }
@@ -457,25 +492,22 @@
         setStatus('scraper', `Found ${totalPages} pages. Starting…`);
         setProgress('scraper', 0, totalPages, true);
 
-        // Scrape current page (page 1) directly
-        DATA.scraper.push(...scrapeList());
+        const firstPageProducts = scrapeList();
         let completed = 1;
         setProgress('scraper', completed, totalPages, true);
-        refreshDisplay('scraper');
+
+        const pageResults = new Array(totalPages - 1).fill(null);
 
         if (totalPages > 1) {
             const base = new URL(location.href);
             const sig = abortCtrl.signal;
             const conc = Math.min(cfg.pageConcurrency, totalPages - 1);
-
-            // Slot for ordered results: pageResults[0] = page 2, pageResults[1] = page 3, ...
-            const pageResults = new Array(totalPages - 1).fill(null);
             let earlyStop = false;
 
             const queue = new TaskQueue(conc, sig);
 
             for (let pageNum = 2; pageNum <= totalPages; pageNum++) {
-                const pn = pageNum; // closure capture
+                const pn = pageNum;
                 queue.push(async () => {
                     if (!isRunning || sig.aborted || earlyStop) throw new Error('Operation stopped');
                     await sleepR();
@@ -484,7 +516,8 @@
                     const url = new URL(base.href);
                     url.searchParams.set('page', pn);
 
-                    const doc = await fetchWithRetry(url.href, sig);
+                    const htmlText = await fetchWithRetryText(url.href, sig);
+                    const doc = new DOMParser().parseFromString(htmlText, 'text/html');
                     const rows = scrapeList(doc);
 
                     if (!rows.length) {
@@ -497,20 +530,19 @@
                     completed++;
                     setProgress('scraper', completed, totalPages, true);
                     setStatus('scraper', `Fetched page ${pn}/${totalPages} (${completed}/${totalPages} done)…`);
-
-                    // Merge all available ordered results so far
-                    const merged = [];
-                    for (const r of pageResults) {
-                        if (r) merged.push(...r);
-                    }
-                    DATA.scraper = [...scrapeList(), ...merged]; // page 1 + ordered rest
-                    refreshDisplay('scraper');
                 });
             }
 
             await queue.run();
         }
 
+        const merged = [];
+        for (const r of pageResults) {
+            if (r) merged.push(...r);
+        }
+        DATA.scraper = [...firstPageProducts, ...merged];
+
+        refreshDisplay('scraper');
         setStatus('scraper', isRunning ? `Done. ${DATA.scraper.length} products.` : 'Stopped.');
         isRunning = false; abortCtrl = null;
         toggleControls(false);
@@ -550,15 +582,27 @@
         setStatus(tab, `Fetching details for ${total} products (concurrency: ${conc})…`);
         setProgress(tab, 0, total, true);
 
-        let uiPending = false;
-        const scheduleUI = () => {
-            if (uiPending) return;
-            uiPending = true;
-            requestAnimationFrame(() => { uiPending = false; refreshDisplay(tab); });
-        };
-
         const sig = abortCtrl.signal;
         const queue = new TaskQueue(conc, sig);
+        const dirtyRows = new Set();
+        let flushTimer = null;
+        const FLUSH_INTERVAL = 350;
+
+        const flushDirtyRows = () => {
+            if (!dirtyRows.size) return;
+            const idxs = Array.from(dirtyRows).sort((a, b) => a - b);
+            dirtyRows.clear();
+            idxs.forEach(idx => updateProductRow(tab, idx));
+        };
+
+        const scheduleRowUpdate = idx => {
+            dirtyRows.add(idx);
+            if (flushTimer) return;
+            flushTimer = setTimeout(() => {
+                flushTimer = null;
+                flushDirtyRows();
+            }, FLUSH_INTERVAL);
+        };
 
         for (let i = 0; i < total; i++) {
             const idx = i;
@@ -566,7 +610,7 @@
                 if (!isRunning || sig.aborted) throw new Error('Operation stopped');
 
                 const p = products[idx];
-                setStatus(tab, `(${completed}/${total}) ${(p.name || p.detailed_name || '').slice(0, 40)}…`);
+                const displayName = (p.name || p.detailed_name || `Item ${idx + 1}`).slice(0, 40);
 
                 if (!p.product_url || p.product_url === 'N/A') {
                     p.detail_error = 'No URL.';
@@ -574,19 +618,28 @@
                     try {
                         await sleepR();
                         if (!isRunning || sig.aborted) throw new Error('Operation stopped');
-                        Object.assign(p, scrapeDetail(await fetchWithRetry(p.product_url, sig)));
+                        const htmlText = await fetchWithRetryText(p.product_url, sig);
+                        Object.assign(p, scrapeDetail(htmlText));
                     } catch (e) {
                         if (e.message === 'Operation stopped' || e.name === 'AbortError') throw e;
                         p.detail_error = `Fetch failed: ${e.message}`;
                     }
                 }
+
                 completed++;
                 setProgress(tab, completed, total, true);
-                scheduleUI();
+                setStatus(tab, `Fetched ${completed}/${total}: ${displayName}`);
+                scheduleRowUpdate(idx);
             });
         }
 
         const { errors } = await queue.run();
+        if (flushTimer) {
+            clearTimeout(flushTimer);
+            flushTimer = null;
+        }
+        flushDirtyRows();
+
         const stopped = errors.some(e => e.message === 'Operation stopped' || e.name === 'AbortError');
         setStatus(tab, stopped ? 'Stopped.' : 'All details fetched.');
         isRunning = false; abortCtrl = null;
@@ -646,18 +699,29 @@
     async function fetchSingleDetail(idx, tab, dc, expandBtn) {
         const p = DATA[tab][idx];
         if (!p.product_url || p.product_url === 'N/A') {
-            p.detail_error = 'No URL.'; renderExpanded(dc, p);
-            dc.style.display = 'block'; if (expandBtn) expandBtn.innerHTML = I.collapse;
+            p.detail_error = 'No URL.';
+            renderExpanded(dc, p);
+            dc.style.display = 'block';
+            if (expandBtn) expandBtn.innerHTML = I.collapse;
             return;
         }
+
         dc.innerHTML = '<div class="details-loading">Fetching…</div>';
         dc.style.display = 'block';
         if (expandBtn) { expandBtn.disabled = true; expandBtn.innerHTML = I.collapse; }
+
         try {
-            Object.assign(p, scrapeDetail(await fetchWithRetry(p.product_url, null, false)));
-        } catch (e) { p.detail_error = `Fetch failed: ${e.message}`; }
-        renderExpanded(dc, p);
-        if (expandBtn) { expandBtn.disabled = false; }
+            const htmlText = await fetchWithRetryText(p.product_url, null, false);
+            Object.assign(p, scrapeDetail(htmlText));
+        } catch (e) {
+            p.detail_error = `Fetch failed: ${e.message}`;
+        }
+
+        const updated = updateProductRow(tab, idx, { forceExpand: true });
+        if (!updated) {
+            renderExpanded(dc, p);
+            if (expandBtn) expandBtn.disabled = false;
+        }
     }
 
     // --- EXPORT ---
@@ -735,7 +799,6 @@
 
     const datestamp = () => new Date().toISOString().slice(0, 10);
 
-    // Map export action to display label
     const EXPORT_LABELS = {
         'copy-json': `${I.copy} Copy JSON`,
         'download-json': `${I.scrapeAll} Download JSON`,
@@ -759,7 +822,6 @@
         const data = prepareExport();
         if (!data.items?.length) { alert('No data to export.'); return; }
 
-        // Persist selected action
         applyExportAction(action);
 
         const dl = action.startsWith('download-');
@@ -792,19 +854,17 @@
 
     // --- UI CREATION ---
     function createUI() {
-        // Toggle button
         const toggle = Object.assign(document.createElement('div'), {
             id: 'cs-toggle', innerHTML: I.tool, title: 'Coles Scraper',
         });
         document.body.appendChild(toggle);
 
-        // Panel
         const panel = document.createElement('div');
         panel.id = 'cs-panel';
         panel.style.display = 'none';
         panel.innerHTML = `
             <div id="cs-header">
-                <span>Coles Scraper v7.2</span>
+                <span>Coles Scraper v7.4.1</span>
                 <button id="cs-close">✕</button>
             </div>
             <div id="cs-tabs">
@@ -848,11 +908,11 @@
                     <summary>Advanced Settings</summary>
                     <div class="settings-grid">
                         <label title="Min random delay">Min Delay (ms)</label>
-                        <input type="number" data-cfg="minDelay"   value="${cfg.minDelay}"   min="100" max="10000">
+                        <input type="number" data-cfg="minDelay" value="${cfg.minDelay}" min="100" max="10000">
                         <label title="Max random delay">Max Delay (ms)</label>
-                        <input type="number" data-cfg="maxDelay"   value="${cfg.maxDelay}"   min="100" max="10000">
+                        <input type="number" data-cfg="maxDelay" value="${cfg.maxDelay}" min="100" max="10000">
                         <label title="Retry count">Max Retries</label>
-                        <input type="number" data-cfg="maxRetries" value="${cfg.maxRetries}" min="0"   max="10">
+                        <input type="number" data-cfg="maxRetries" value="${cfg.maxRetries}" min="0" max="10">
                         <label title="Delay between retries">Retry Wait (ms)</label>
                         <input type="number" data-cfg="retryDelay" value="${cfg.retryDelay}" min="100" max="10000">
                         <label title="Concurrent detail fetches">Detail Concurrency</label>
@@ -870,7 +930,6 @@
             </div>`;
         document.body.appendChild(panel);
 
-        // Cache DOM refs
         Object.assign($, {
             toggle, panel,
             scraperBtns: panel.querySelector('#sc-btns'),
@@ -888,10 +947,8 @@
             settings: panel.querySelector('#cs-settings'),
         });
 
-        // Restore persisted export action
         applyExportAction(cfg.exportAction);
 
-        // Panels toggle
         let visible = false;
         const showPanel = v => {
             visible = v;
@@ -901,10 +958,8 @@
         toggle.addEventListener('click', () => showPanel(true));
         panel.querySelector('#cs-close').addEventListener('click', () => showPanel(false));
 
-        // Tabs
         panel.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
-        // Export
         $.exportMain.addEventListener('click', () => runExport($.exportMain.dataset.action));
         $.exportToggle.addEventListener('click', () => {
             $.exportMenu.style.display = $.exportMenu.style.display === 'none' ? 'block' : 'none';
@@ -920,7 +975,6 @@
                 $.exportMenu.style.display = 'none';
         });
 
-        // Clear
         panel.querySelector('#cs-clear').addEventListener('click', () => {
             if (isRunning) return;
             DATA[activeTab] = [];
@@ -928,11 +982,9 @@
             refreshDisplay(activeTab);
         });
 
-        // Product item actions (delegated)
         panel.querySelector('#sc-list').addEventListener('click', handleItemActions);
         panel.querySelector('#tr-list').addEventListener('click', handleItemActions);
 
-        // Settings — unified handler with persistence
         panel.querySelectorAll('[data-cfg]').forEach(el => {
             el.addEventListener('change', () => {
                 const key = el.dataset.cfg;
@@ -943,7 +995,6 @@
             });
         });
 
-        // Draggable
         makeDraggable(panel, panel.querySelector('#cs-header'));
     }
 
@@ -953,9 +1004,9 @@
             e.preventDefault();
             ox = e.clientX - el.offsetLeft;
             oy = e.clientY - el.offsetTop;
-            const move = e => {
-                el.style.left = clamp(e.clientX - ox, 0, innerWidth - el.offsetWidth) + 'px';
-                el.style.top = clamp(e.clientY - oy, 0, innerHeight - el.offsetHeight) + 'px';
+            const move = e2 => {
+                el.style.left = clamp(e2.clientX - ox, 0, innerWidth - el.offsetWidth) + 'px';
+                el.style.top = clamp(e2.clientY - oy, 0, innerHeight - el.offsetHeight) + 'px';
             };
             const up = () => { document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); };
             document.addEventListener('mousemove', move);
@@ -966,12 +1017,35 @@
     // --- PAGE CHANGE MONITORING ---
     function monitorNavigation() {
         let cur = location.href;
-        new MutationObserver(() => {
-            if (location.href !== cur) {
-                cur = location.href;
-                setTimeout(() => { if (!isRunning) switchTab(activeTab); }, 1500);
-            }
-        }).observe(document.body, { childList: true, subtree: true });
+        let refreshTimer = null;
+
+        const scheduleRefresh = () => {
+            if (refreshTimer) clearTimeout(refreshTimer);
+            refreshTimer = setTimeout(() => {
+                if (!isRunning) switchTab(activeTab);
+            }, 600);
+        };
+
+        const onUrlChange = () => {
+            if (location.href === cur) return;
+            cur = location.href;
+            scheduleRefresh();
+        };
+
+        const wrapHistoryMethod = method => {
+            const original = history[method];
+            if (typeof original !== 'function') return;
+            history[method] = function (...args) {
+                const result = original.apply(this, args);
+                queueMicrotask(onUrlChange);
+                return result;
+            };
+        };
+
+        wrapHistoryMethod('pushState');
+        wrapHistoryMethod('replaceState');
+        window.addEventListener('popstate', onUrlChange);
+        window.addEventListener('hashchange', onUrlChange);
     }
 
     // --- CSS ---
